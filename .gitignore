@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno / secretos (NUNCA subir a GitHub)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.keys
+*.env
+
+# Archivos de configuracion con credenciales de Supabase
+supabase/.branches/
+supabase/.temp/
+supabase/snippets/
+
+# Dumps y backups de la base de datos
+# OJO: las migraciones en supabase/migrations/ SÍ se suben a GitHub
+*.dump
+*.bak
+*.backup
+*.tar.gz
+*.gz
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Cache de dependencias
+.pnpm-store/
+.yarn/
+.cache/
