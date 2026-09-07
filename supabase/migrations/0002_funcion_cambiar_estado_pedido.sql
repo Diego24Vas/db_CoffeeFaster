@@ -4,12 +4,12 @@ CREATE OR REPLACE FUNCTION cambiar_estado_pedido(
 ) RETURNS BOOLEAN AS $$
 DECLARE
     v_estado_actual VARCHAR;
-    v_creado_en TIMESTAMPTZ;
+    v_creado_en TIMESTAMP;
 BEGIN
     -- 1. Obtener datos actuales y bloquear la fila para evitar condiciones de carrera (concurrency)
     SELECT estado, creado_en INTO v_estado_actual, v_creado_en
-    FROM "PEDIDOS"
-    WHERE id = p_pedido_id FOR UPDATE; 
+    FROM pedidos
+    WHERE id = p_pedido_id FOR UPDATE;
 
     -- 2. Validar que el pedido exista
     IF NOT FOUND THEN
@@ -23,24 +23,30 @@ BEGIN
 
     -- 4. Ejecutar el cambio de estado y registrar auditoría de tiempo
     IF p_nuevo_estado = 'preparando' THEN
-        UPDATE "PEDIDOS"
+        UPDATE pedidos
         SET estado = p_nuevo_estado,
             inicio_preparacion_en = CURRENT_TIMESTAMP
         WHERE id = p_pedido_id;
 
     ELSIF p_nuevo_estado = 'listo' THEN
-        UPDATE "PEDIDOS"
+        UPDATE pedidos
         SET estado = p_nuevo_estado,
-            completado_en = CURRENT_TIMESTAMP,
-            -- Calcula los minutos reales desde que se creó el pedido hasta que está listo
-            tiempo_real_min = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - v_creado_en)) / 60
+            listo_en = CURRENT_TIMESTAMP,
+            tiempo_real_min = ROUND(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - v_creado_en)) / 60)::INTEGER
         WHERE id = p_pedido_id;
 
-    ELSIF p_nuevo_estado IN ('entregado', 'cancelado') THEN
-        UPDATE "PEDIDOS"
-        SET estado = p_nuevo_estado
+    ELSIF p_nuevo_estado = 'entregado' THEN
+        UPDATE pedidos
+        SET estado = p_nuevo_estado,
+            entregado_en = CURRENT_TIMESTAMP
         WHERE id = p_pedido_id;
-        
+
+    ELSIF p_nuevo_estado = 'cancelado' THEN
+        UPDATE pedidos
+        SET estado = p_nuevo_estado,
+            cancelado_en = CURRENT_TIMESTAMP
+        WHERE id = p_pedido_id;
+
     ELSE
         RAISE EXCEPTION 'Estado no reconocido: %', p_nuevo_estado;
     END IF;
