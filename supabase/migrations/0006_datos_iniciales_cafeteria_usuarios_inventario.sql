@@ -77,6 +77,19 @@ ON CONFLICT (id) DO UPDATE SET
     activo = EXCLUDED.activo;
 
 -- ==========================================
+-- 4.1 ROLES DE USUARIO
+-- ==========================================
+
+INSERT INTO roles (id, nombre, descripcion, activo) VALUES
+    (1, 'estudiante', 'Consulta menús, realiza pedidos, paga y retira con QR via Android', true),
+    (2, 'empleado', 'Opera el KDS en Windows para preparar y validar retiros QR', true),
+    (3, 'dueño', 'Administra productos, stock, personal, métricas y recibe alertas de IA', true)
+ON CONFLICT (id) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    descripcion = EXCLUDED.descripcion,
+    activo = EXCLUDED.activo;
+
+-- ==========================================
 -- 5. USUARIOS EN SUPABASE AUTH Y TABLA USUARIOS
 -- ==========================================
 -- Clave para todos los usuarios de prueba: 123456
@@ -348,6 +361,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ==========================================
 -- Evita errores de clave duplicada al insertar nuevos registros posteriormente
 
+SELECT setval('roles_id_seq', COALESCE((SELECT MAX(id) FROM roles), 1));
 SELECT setval('universidades_id_seq', COALESCE((SELECT MAX(id) FROM universidades), 1));
 SELECT setval('campus_sedes_id_seq', COALESCE((SELECT MAX(id) FROM campus_sedes), 1));
 SELECT setval('cafeterias_id_seq', COALESCE((SELECT MAX(id) FROM cafeterias), 1));
