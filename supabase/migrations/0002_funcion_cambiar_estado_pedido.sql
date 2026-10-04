@@ -1,10 +1,16 @@
+-- ====================================================================
+-- MIGRACIÓN 0002: Función para cambiar estado de pedidos
+-- Administra la máquina de estados de un pedido y calcula los tiempos
+-- reales de preparación con marcas temporales TIMESTAMPTZ.
+-- ====================================================================
+
 CREATE OR REPLACE FUNCTION cambiar_estado_pedido(
     p_pedido_id BIGINT,
     p_nuevo_estado VARCHAR
 ) RETURNS BOOLEAN AS $$
 DECLARE
     v_estado_actual VARCHAR;
-    v_creado_en TIMESTAMP;
+    v_creado_en TIMESTAMPTZ;
 BEGIN
     -- 1. Obtener datos actuales y bloquear la fila para evitar condiciones de carrera (concurrency)
     SELECT estado, creado_en INTO v_estado_actual, v_creado_en
@@ -22,7 +28,7 @@ BEGIN
     END IF;
 
     -- 4. Ejecutar el cambio de estado y registrar auditoría de tiempo
-    IF p_nuevo_estado = 'preparando' THEN
+    IF p_nuevo_estado = 'preparando' OR p_nuevo_estado = 'en_preparacion' THEN
         UPDATE pedidos
         SET estado = p_nuevo_estado,
             inicio_preparacion_en = CURRENT_TIMESTAMP

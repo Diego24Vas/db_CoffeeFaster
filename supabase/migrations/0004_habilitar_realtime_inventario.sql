@@ -1,13 +1,16 @@
--- ==========================================
--- 4. Habilitar Realtime para inventario y stock
--- ==========================================
+-- ====================================================================
+-- MIGRACIÓN 0004: Habilitar Realtime para inventario, stock, pedidos y wallet
+-- ====================================================================
 -- Permite que los clientes (Desktop / Web / Móvil) reciban
 -- actualizaciones en vivo por WebSocket sobre cambios en productos,
--- alertas de stock y pedidos.
+-- alertas de stock, movimientos de inventario, pedidos, detalles y saldo wallet.
 
 ALTER TABLE public.productos REPLICA IDENTITY FULL;
 ALTER TABLE public.alertas_stock REPLICA IDENTITY FULL;
 ALTER TABLE public.movimientos_inventario REPLICA IDENTITY FULL;
+ALTER TABLE public.pedidos REPLICA IDENTITY FULL;
+ALTER TABLE public.detalles_pedido REPLICA IDENTITY FULL;
+ALTER TABLE public.wallets REPLICA IDENTITY FULL;
 
 DO $$
 BEGIN
@@ -38,5 +41,18 @@ BEGIN
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.pedidos;
   END IF;
-END $$;
 
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'detalles_pedido'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.detalles_pedido;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'wallets'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.wallets;
+  END IF;
+END $$;

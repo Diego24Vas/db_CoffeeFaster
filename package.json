@@ -1,4 +1,9 @@
 {
+  "name": "db-coffeefaster",
+  "version": "1.0.0",
+  "scripts": {
+    "seed": "docker exec -i supabase_db_db_CoffeeFaster psql -U postgres -d postgres < supabase/seed_manual.sql"
+  },
   "dependencies": {
     "supabase": "^2.117.0"
   }
