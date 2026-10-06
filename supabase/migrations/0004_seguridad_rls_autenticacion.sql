@@ -18,11 +18,26 @@ ON CONFLICT (nombre) DO NOTHING;
 -- ==========================================
 -- PASO 2: AGREGAR CAMPO auth_user_id A USUARIOS
 -- ==========================================
--- Vincula la tabla usuarios con el sistema de autenticación de Supabase
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'usuarios' AND column_name = 'auth_user_id'
+    ) THEN
+        ALTER TABLE usuarios ADD COLUMN auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL;
+    ELSE
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint 
+            WHERE conrelid = 'public.usuarios'::regclass 
+              AND contype = 'u' 
+              AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.usuarios'::regclass AND attname = 'auth_user_id')]
+        ) THEN
+            ALTER TABLE usuarios ADD CONSTRAINT usuarios_auth_user_id_key UNIQUE (auth_user_id);
+        END IF;
+    END IF;
+END $$;
 
-ALTER TABLE usuarios ADD COLUMN auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL;
-
-CREATE INDEX idx_usuarios_auth_user_id ON usuarios(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_usuarios_auth_user_id ON usuarios(auth_user_id);
 
 COMMENT ON COLUMN usuarios.auth_user_id IS 'UUID del usuario en auth.users para vincular con Supabase Auth (FR-01)';
 

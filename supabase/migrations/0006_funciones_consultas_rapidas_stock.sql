@@ -73,6 +73,7 @@ END;
 $$;
 
 -- 3. Función para obtener últimas alertas del dueño vinculado
+DROP FUNCTION IF EXISTS public.obtener_alertas_dueno(BIGINT, INTEGER);
 CREATE OR REPLACE FUNCTION public.obtener_alertas_dueno(
     p_chat_id BIGINT,
     p_limite INTEGER DEFAULT 5

@@ -68,7 +68,7 @@ CREATE TABLE usuarios (
     ultima_conexion TIMESTAMPTZ,
     creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 -- ==========================================
