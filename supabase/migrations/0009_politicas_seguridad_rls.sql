@@ -213,6 +213,22 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 -- 4. POLÍTICAS RLS ESPECÍFICAS POR TABLA
 -- ====================================================================
 
+-- Limpieza total de políticas previas heredadas (migraciones 0004, 0005)
+-- para evitar colisiones y erradicar la recursión infinita (error 42P17).
+DO $$
+DECLARE
+    pol RECORD;
+BEGIN
+    FOR pol IN (
+        SELECT schemaname, tablename, policyname
+        FROM pg_policies
+        WHERE schemaname = 'public'
+    ) LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I', pol.policyname, pol.schemaname, pol.tablename);
+    END LOOP;
+END $$;
+
+
 -- --------------------------------------------------------------------
 -- 4.1 universidades
 -- --------------------------------------------------------------------
