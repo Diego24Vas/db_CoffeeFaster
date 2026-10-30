@@ -1,5 +1,5 @@
 -- ====================================================================
--- MIGRACIÓN 0011: Consulta segura de movimientos de Wallet y Realtime (S2-T12)
+-- MIGRACIÓN 0013: Consulta segura de movimientos de Wallet y Realtime (S2-T12)
 -- Tarea: S2-T12-Diego Vásquez — Integrar consulta segura de movimientos
 --
 -- Objetivo:

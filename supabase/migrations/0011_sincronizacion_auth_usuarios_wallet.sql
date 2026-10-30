@@ -1,5 +1,5 @@
 -- ====================================================================
--- MIGRACIÓN 0009: Sincronización Automática Auth -> Usuarios -> Wallet (S2-T2)
+-- MIGRACIÓN 0011: Sincronización Automática Auth -> Usuarios -> Wallet (S2-T2)
 -- Tarea: S2-T2-Diego Vásquez — Corregir flujo de confirmación de cuenta
 --
 -- Objetivo:
@@ -108,21 +108,5 @@ CREATE TRIGGER on_usuario_wallet
     EXECUTE FUNCTION public.crear_wallet_automatica();
 
 
--- --------------------------------------------------------------------
--- 3. POLÍTICAS RLS SEGURAS PARA public.usuarios (SIN RECURSIÓN 42P17)
--- --------------------------------------------------------------------
-ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS usuarios_select_own ON public.usuarios;
-CREATE POLICY usuarios_select_own ON public.usuarios
-    FOR SELECT TO authenticated
-    USING (
-        auth_user_id = auth.uid()
-        OR email = auth.jwt() ->> 'email'
-    );
-
-DROP POLICY IF EXISTS usuarios_update_own ON public.usuarios;
-CREATE POLICY usuarios_update_own ON public.usuarios
-    FOR UPDATE TO authenticated
-    USING (auth_user_id = auth.uid())
-    WITH CHECK (auth_user_id = auth.uid());
+-- Las políticas RLS de usuarios se definen en 0009_politicas_seguridad_rls.sql.
+-- No se reemplazan aquí para conservar las reglas de acceso de dueño y personal.

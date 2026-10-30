@@ -1,5 +1,5 @@
 -- ====================================================================
--- MIGRACIÓN 0010: Validación de modificación de perfil y protección de datos sensibles (S2-T8)
+-- MIGRACIÓN 0012: Validación de modificación de perfil y protección de datos sensibles (S2-T8)
 -- Tarea: S2-T8-Diego Vásquez — Validar modificación de perfil
 --
 -- Objetivo:
