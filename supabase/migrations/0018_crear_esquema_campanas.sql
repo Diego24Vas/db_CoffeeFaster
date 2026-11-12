@@ -6,49 +6,10 @@
 -- Define la tabla de campañas para carritos completos asociadas a la cafetería
 -- que las administra, con tasas de descuento y comisión, vigencia, versión
 -- de condiciones y confirmación / aceptación por el dueño.
--- Compatible con bases vacías en aislamiento y con el esquema productivo.
+-- Compatible con el esquema productivo multi-tenancy.
 -- ====================================================================
 
--- 1. Tablas de soporte mínimas si se ejecuta en una base vacía aislada
-CREATE TABLE IF NOT EXISTS public.cafeterias (
-    id BIGSERIAL PRIMARY KEY,
-    nombre VARCHAR(255) NOT NULL,
-    activa BOOLEAN DEFAULT true,
-    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS public.usuarios (
-    id BIGSERIAL PRIMARY KEY,
-    nombre VARCHAR(255),
-    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
-
--- Funciones auxiliares mínimas si se ejecuta en una base vacía aislada
-CREATE OR REPLACE FUNCTION public.es_dueno()
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-AS $$
-    SELECT true;
-$$;
-
-CREATE OR REPLACE FUNCTION public.es_empleado()
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-AS $$
-    SELECT false;
-$$;
-
-CREATE OR REPLACE FUNCTION public.mis_cafeterias_ids()
-RETURNS SETOF BIGINT
-LANGUAGE sql
-STABLE
-AS $$
-    SELECT id FROM public.cafeterias;
-$$;
-
--- 2. Tabla principal: campanas
+-- 1. Tabla principal: campanas
 CREATE TABLE IF NOT EXISTS public.campanas (
     id                      bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     cafeteria_id            bigint NOT NULL REFERENCES public.cafeterias(id) ON DELETE CASCADE,
@@ -87,7 +48,7 @@ ALTER TABLE public.campanas
     ADD COLUMN IF NOT EXISTS creado_en timestamptz NOT NULL DEFAULT clock_timestamp(),
     ADD COLUMN IF NOT EXISTS actualizado_en timestamptz NOT NULL DEFAULT clock_timestamp();
 
--- 3. Índices de optimización
+-- 2. Índices de optimización
 CREATE INDEX IF NOT EXISTS idx_campanas_cafeteria
     ON public.campanas (cafeteria_id, creado_en DESC);
 
@@ -97,7 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_campanas_estado
 CREATE INDEX IF NOT EXISTS idx_campanas_vigencia
     ON public.campanas (vigencia_desde, vigencia_hasta);
 
--- 4. Comentarios de documentación del esquema
+-- 3. Comentarios de documentación del esquema
 COMMENT ON TABLE public.campanas IS
     'Campañas de carrito completo asociadas a cafeterías con tasas de descuento, comisión, vigencia y confirmación de dueño.';
 COMMENT ON COLUMN public.campanas.tipo IS
@@ -115,7 +76,7 @@ COMMENT ON COLUMN public.campanas.fecha_confirmacion IS
 COMMENT ON COLUMN public.campanas.usuario_confirma_id IS
     'Usuario con rol dueño que firmó la confirmación de la campaña.';
 
--- 5. Seguridad a nivel de filas (RLS) y permisos
+-- 4. Seguridad a nivel de filas (RLS) y permisos
 ALTER TABLE public.campanas ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.campanas FROM anon;
 GRANT SELECT, INSERT, UPDATE ON public.campanas TO authenticated;
@@ -149,12 +110,37 @@ CREATE POLICY campanas_update_dueno
         AND cafeteria_id IN (SELECT public.mis_cafeterias_ids())
     );
 
--- 6. RPC para confirmación idempotente y segura por el dueño
+-- 5. Restricción de escritura directa sobre campos de confirmación
+CREATE OR REPLACE FUNCTION public.proteger_confirmacion_campanas()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF (NEW.confirmada_por_dueno IS DISTINCT FROM OLD.confirmada_por_dueno
+        OR NEW.fecha_confirmacion IS DISTINCT FROM OLD.fecha_confirmacion
+        OR NEW.usuario_confirma_id IS DISTINCT FROM OLD.usuario_confirma_id
+        OR NEW.version_confirmada IS DISTINCT FROM OLD.version_confirmada) THEN
+        IF session_user = 'authenticated' THEN
+            RAISE EXCEPTION 'Los campos de confirmación no pueden modificarse directamente. Utilice la función RPC autorizada.'
+                USING ERRCODE = '42501';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_proteger_confirmacion_campanas ON public.campanas;
+CREATE TRIGGER trg_proteger_confirmacion_campanas
+    BEFORE UPDATE ON public.campanas
+    FOR EACH ROW
+    EXECUTE FUNCTION public.proteger_confirmacion_campanas();
+
+-- 6. RPC para confirmación idempotente, atómica y validada por el dueño
 CREATE OR REPLACE FUNCTION public.confirmar_condiciones_campana(
     p_campana_id bigint,
     p_cafeteria_id bigint,
-    p_usuario_id bigint,
-    p_version text
+    p_usuario_id bigint DEFAULT NULL,
+    p_version text DEFAULT NULL
 )
 RETURNS public.campanas
 LANGUAGE plpgsql
@@ -162,9 +148,57 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+    v_usuario_id bigint;
     v_campana public.campanas;
 BEGIN
-    -- Validar existencia y alcance por cafetería
+    -- 1. Resolver el usuario autenticado desde auth.uid() de Supabase
+    v_usuario_id := public.mi_usuario_id();
+    IF v_usuario_id IS NULL AND auth.uid() IS NOT NULL THEN
+        SELECT id INTO v_usuario_id
+        FROM public.usuarios
+        WHERE auth_user_id = auth.uid()
+        LIMIT 1;
+    END IF;
+
+    -- Fallback administrativo si no hay contexto JWT (pruebas locales/psql)
+    IF v_usuario_id IS NULL AND p_usuario_id IS NOT NULL AND auth.uid() IS NULL THEN
+        v_usuario_id := p_usuario_id;
+    END IF;
+
+    IF v_usuario_id IS NULL THEN
+        RAISE EXCEPTION 'Usuario no autenticado o sesión no encontrada'
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- 2. Verificar que el usuario tenga rol de dueño para la cafetería
+    IF auth.uid() IS NOT NULL THEN
+        IF NOT (
+            (public.es_dueno() AND p_cafeteria_id IN (SELECT public.mis_cafeterias_ids()))
+            OR EXISTS (
+                SELECT 1 FROM public.usuarios u
+                JOIN public.roles r ON r.id = u.rol_id
+                JOIN public.cafeteria_usuarios cu ON cu.usuario_id = u.id
+                WHERE u.id = v_usuario_id AND lower(r.nombre) IN ('dueño', 'dueno')
+                  AND cu.cafeteria_id = p_cafeteria_id
+            )
+        ) THEN
+            RAISE EXCEPTION 'Solo el dueño asignado a la cafetería puede confirmar condiciones'
+                USING ERRCODE = '42501';
+        END IF;
+    ELSE
+        IF NOT EXISTS (
+            SELECT 1 FROM public.usuarios u
+            JOIN public.roles r ON r.id = u.rol_id
+            JOIN public.cafeteria_usuarios cu ON cu.usuario_id = u.id
+            WHERE u.id = v_usuario_id AND lower(r.nombre) IN ('dueño', 'dueno')
+              AND cu.cafeteria_id = p_cafeteria_id
+        ) THEN
+            RAISE EXCEPTION 'El usuario no tiene rol de dueño en la cafetería especificada'
+                USING ERRCODE = '42501';
+        END IF;
+    END IF;
+
+    -- 3. Bloquear la fila de la campaña (atomicidad y serialización de concurrencia)
     SELECT * INTO v_campana
     FROM public.campanas
     WHERE id = p_campana_id AND cafeteria_id = p_cafeteria_id
@@ -175,17 +209,24 @@ BEGIN
             USING ERRCODE = 'P0002';
     END IF;
 
-    -- Idempotencia: si ya estaba confirmada, retornar sin duplicar ni fallar
+    -- 4. Validar obligatoriamente la versión de condiciones vigente
+    IF trim(coalesce(p_version, '')) = '' OR trim(p_version) IS DISTINCT FROM trim(v_campana.version_condiciones) THEN
+        RAISE EXCEPTION 'La versión indicada (%) no coincide con la versión vigente de la campaña (%)',
+            p_version, v_campana.version_condiciones
+            USING ERRCODE = '22023';
+    END IF;
+
+    -- 5. Idempotencia: si ya estaba confirmada, retornar sin reescribir ni fallar
     IF v_campana.confirmada_por_dueno = true THEN
         RETURN v_campana;
     END IF;
 
-    -- Actualizar confirmación de forma atómica
+    -- 6. Actualizar confirmación de forma atómica
     UPDATE public.campanas
     SET confirmada_por_dueno = true,
         fecha_confirmacion = clock_timestamp(),
-        usuario_confirma_id = p_usuario_id,
-        version_confirmada = p_version,
+        usuario_confirma_id = v_usuario_id,
+        version_confirmada = trim(p_version),
         estado = CASE WHEN estado IN ('borrador', 'pendiente_aceptacion') THEN 'activa' ELSE estado END,
         actualizado_en = clock_timestamp()
     WHERE id = p_campana_id
