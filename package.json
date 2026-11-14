@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "scripts": {
     "seed": "docker exec -i supabase_db_db_CoffeeFaster psql -U postgres -d postgres < supabase/seed_manual.sql",
-    "test": "node tests/campanas.cjs"
+    "test": "npm run test:migraciones && npm run test:campanas && npm run test:afiliaciones",
+    "test:migraciones": "node tests/migraciones.cjs",
+    "test:campanas": "node tests/campanas.cjs",
+    "test:afiliaciones": "node tests/afiliaciones.cjs"
   },
   "dependencies": {
     "supabase": "^2.117.0"

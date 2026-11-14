@@ -1,0 +1,70 @@
+[
+  {
+    "version": "0001",
+    "name": "create_tables"
+  },
+  {
+    "version": "0002",
+    "name": "funcion_cambiar_estado_pedido"
+  },
+  {
+    "version": "0003",
+    "name": "vista_ventas_dia"
+  },
+  {
+    "version": "0004",
+    "name": "habilitar_realtime_inventario"
+  },
+  {
+    "version": "0005",
+    "name": "funciones_consultas_rapidas_stock"
+  },
+  {
+    "version": "0006",
+    "name": "funciones_y_triggers_wallet"
+  },
+  {
+    "version": "0007",
+    "name": "politicas_seguridad_rls"
+  },
+  {
+    "version": "0008",
+    "name": "habilitar_realtime_inventario"
+  },
+  {
+    "version": "0009",
+    "name": "politicas_seguridad_rls"
+  },
+  {
+    "version": "0010",
+    "name": "crear_tabla_solicitudes_stock"
+  },
+  {
+    "version": "0011",
+    "name": "sincronizacion_auth_usuarios_wallet"
+  },
+  {
+    "version": "0012",
+    "name": "validar_modificacion_perfil_estudiante"
+  },
+  {
+    "version": "0013",
+    "name": "consulta_segura_movimientos_wallet"
+  },
+  {
+    "version": "0014",
+    "name": "rpc_cancelar_pedido_y_seguridad_cuenta"
+  },
+  {
+    "version": "0015",
+    "name": "endurecer_solicitudes_stock"
+  },
+  {
+    "version": "0016",
+    "name": "endurecer_logs_validacion_qr"
+  },
+  {
+    "version": "0017",
+    "name": "crear_anuncios_pedido"
+  }
+]
