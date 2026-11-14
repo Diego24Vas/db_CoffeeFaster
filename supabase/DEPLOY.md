@@ -1,4 +1,4 @@
-# Preparación de despliegue de V04
+# Preparación de despliegue de V04 y V05
 
 Repositorio de base de datos: `db_CoffeeFaster`. Proyecto revisado:
 `integracion3` (`yvkpmqcynpygqjvaoiwn`), PostgreSQL 17.11.
@@ -32,6 +32,7 @@ comparar primero su historial: esta conciliación corresponde a `integracion3`.
    - `0018_crear_esquema_campanas.sql`
    - `0019_asegurar_aceptacion_campanas.sql`
    - `0020_modelar_afiliaciones_y_movimientos.sql`
+   - `20261114012105_autorizar_solicitudes_afiliacion.sql`
 4. Si aparece cualquier otra migración, detener el despliegue y contrastar el
    historial. No usar `--include-all`, `--include-seed` ni `db reset` en Cloud.
 5. La aplicación de las migraciones queda pendiente de autorización. Preparar
@@ -40,5 +41,14 @@ comparar primero su historial: esta conciliación corresponde a `integracion3`.
 `0020` se aplica una sola vez y se registra en el historial. Su transacción revierte
 tablas, funciones y triggers si falla. No contiene datos ficticios ni recalcula
 importes de pedidos. Los nuevos triggers impiden trasladar campañas o pedidos con
-historial de afiliación a otra cafetería. V04 prepara el modelo; las operaciones
-de solicitud, aprobación y pago de tareas posteriores aún no están implementadas.
+historial de afiliación a otra cafetería. V04 prepara el modelo; V05 añade la RPC
+de aprobación/rechazo/desactivación y bloquea nuevas atribuciones a códigos
+desactivados. La creación de solicitudes desde la API y el pago afiliado quedan
+en las tareas posteriores.
+
+V05 exige JWT del dueño al llamar `resolver_solicitud_afiliacion`, incluso desde
+ms-pedidos. `service_role` conserva INSERT de pendientes y pierde UPDATE en
+solicitudes; no debe usarse para sustituir la sesión al resolverlas. La migración
+conserva su versión temporal generada por CLI y se ejecuta después de `0020`.
+Crear también las siguientes mediante `supabase migration new`, sin intercalar
+nuevas versiones cortas anteriores a la de V05. Detalles y pruebas en `tests/README.md`.

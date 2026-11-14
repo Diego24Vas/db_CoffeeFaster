@@ -9,7 +9,7 @@ const versiones = archivos.map(nombre => nombre.split('_')[0]);
 assert.equal(new Set(versiones).size, versiones.length, 'No puede haber versiones duplicadas');
 assert.deepEqual(archivos.slice(0, historial.length),
   historial.map(({ version, name }) => `${version}_${name}.sql`), 'Historial local alineado con Cloud');
-assert.deepEqual(versiones.slice(historial.length), ['0018', '0019', '0020'], 'Orden de las migraciones pendientes');
+assert.deepEqual(versiones.slice(historial.length), ['0018', '0019', '0020', '20261114012105'], 'Orden de las migraciones pendientes');
 
 conBaseTemporal('migraciones', async ({ sql }) => {
   sql(`DO $$ BEGIN
@@ -42,9 +42,11 @@ conBaseTemporal('migraciones', async ({ sql }) => {
         END $$;
         ALTER PUBLICATION supabase_realtime OWNER TO cf_migration_owner;
         ALTER DEFAULT PRIVILEGES FOR ROLE cf_migration_owner IN SCHEMA public
+          GRANT EXECUTE ON FUNCTIONS TO anon,authenticated,service_role;
+        ALTER DEFAULT PRIVILEGES FOR ROLE cf_migration_owner IN SCHEMA public
           GRANT ALL ON TABLES TO anon,authenticated,service_role;`);
     }
-    const rol = nombre.slice(0, 4) >= '0018' ? 'SET ROLE cf_migration_owner;\n' : '';
+    const rol = nombre.split('_')[0] >= '0018' ? 'SET ROLE cf_migration_owner;\n' : '';
     sql(rol + fs.readFileSync(path.join(directorio, nombre), 'utf8'));
     console.log(`APROBADO: migración ${nombre}`);
   }
@@ -52,8 +54,13 @@ conBaseTemporal('migraciones', async ({ sql }) => {
     WHERE oid IN ('public.campanas'::regclass,'public.solicitudes_afiliacion'::regclass,'public.movimientos_comision'::regclass)`), 't');
   assert.equal(sql(`SELECT NOT has_table_privilege('anon','solicitudes_afiliacion','SELECT')
     AND NOT has_table_privilege('authenticated','solicitudes_afiliacion','INSERT')
+    AND NOT has_table_privilege('service_role','solicitudes_afiliacion','UPDATE')
     AND NOT has_table_privilege('service_role','movimientos_comision','DELETE')`), 't');
   assert.equal(sql(`SELECT EXISTS(SELECT FROM pg_publication_tables
     WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='campanas')`), 't');
+  assert.equal(sql(`SELECT has_function_privilege('authenticated','resolver_solicitud_afiliacion(bigint,text,text)','EXECUTE')
+    AND NOT has_function_privilege('anon','resolver_solicitud_afiliacion(bigint,text,text)','EXECUTE')
+    AND NOT has_function_privilege('service_role','resolver_solicitud_afiliacion(bigint,text,text)','EXECUTE')
+    AND NOT has_function_privilege('authenticated','validar_codigo_afiliacion()','EXECUTE')`), 't');
   console.log('Historial completo y migraciones pendientes aprobados, con RLS, permisos y publicación Realtime.');
 }).catch(error => { console.error(error.message); process.exitCode = 1; });
