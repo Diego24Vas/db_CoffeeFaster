@@ -20,7 +20,7 @@ conBaseTemporal('v05', async ({ sql, sqlAsync }) => {
   sql(fs.readFileSync(path.join(__dirname, 'fixtures/afiliaciones.sql'), 'utf8'));
   // Se simulan los permisos por defecto amplios de Supabase antes de crear funciones.
   sql('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon,authenticated,service_role;');
-  const migration = leer('20261114012105_autorizar_solicitudes_afiliacion.sql');
+  const migration = leer('0021_autorizar_solicitudes_afiliacion.sql');
   const duenoAnterior = sql("SELECT pg_get_functiondef('dueno_campana_id(bigint)'::regprocedure)");
   assert.throws(() => sql(migration.replace("NOTIFY pgrst, 'reload schema';", 'SELECT 1/0;')), /Command failed/);
   assert.equal(sql("SELECT to_regprocedure('resolver_solicitud_afiliacion(bigint,text,text)') IS NULL AND NOT EXISTS(SELECT FROM pg_trigger WHERE tgname IN ('validar_codigo_afiliacion','proteger_resolucion_afiliacion')) AND has_table_privilege('service_role','solicitudes_afiliacion','UPDATE')"), 't');

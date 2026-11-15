@@ -32,7 +32,8 @@ comparar primero su historial: esta conciliación corresponde a `integracion3`.
    - `0018_crear_esquema_campanas.sql`
    - `0019_asegurar_aceptacion_campanas.sql`
    - `0020_modelar_afiliaciones_y_movimientos.sql`
-   - `20261114012105_autorizar_solicitudes_afiliacion.sql`
+   - `0021_autorizar_solicitudes_afiliacion.sql`
+   - `0022_s3_t5_crear_tabla_promociones.sql`
 4. Si aparece cualquier otra migración, detener el despliegue y contrastar el
    historial. No usar `--include-all`, `--include-seed` ni `db reset` en Cloud.
 5. La aplicación de las migraciones queda pendiente de autorización. Preparar

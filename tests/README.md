@@ -16,14 +16,13 @@ de publicación y la conciliación del historial están en `supabase/DEPLOY.md`.
 
 Se verificó además `supabase db push --dry-run --skip-vault` con CLI 2.117.0
 contra una base local que reproducía el historial remoto hasta `0017`. Propuso
-`0018`, `0019`, `0020` y `20261114012105`, sin seeds ni roles. Esta simulación no ejecutó
+`0018`, `0019`, `0020`, `0021` y `0022`, sin seeds ni roles. Esta simulación no ejecutó
 DDL en Cloud y no reemplaza comparar otra vez su historial antes de desplegar.
 
 ## V05 / CAM-172 — autorizar y resolver solicitudes
 
-`20261114012105_autorizar_solicitudes_afiliacion.sql` se aplica después de `0020`.
-No se reescriben migraciones publicadas. Se creó mediante Supabase CLI y conserva
-su versión temporal; las migraciones siguientes también deben crearse con la CLI.
+`0021_autorizar_solicitudes_afiliacion.sql` se aplica después de `0020`.
+La migración de promociones continúa la misma numeración como `0022`.
 
 RPC: `resolver_solicitud_afiliacion(p_solicitud_id bigint, p_decision text,
 p_codigo text DEFAULT NULL)`, con JWT del dueño y rol `authenticated`. Devuelve
