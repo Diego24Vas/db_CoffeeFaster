@@ -2,7 +2,12 @@
   "name": "db-coffeefaster",
   "version": "1.0.0",
   "scripts": {
-    "seed": "docker exec -i supabase_db_db_CoffeeFaster psql -U postgres -d postgres < supabase/seed_manual.sql"
+    "seed": "docker exec -i supabase_db_db_CoffeeFaster psql -U postgres -d postgres < supabase/seed_manual.sql",
+    "test": "npm run test:migraciones && npm run test:campanas && npm run test:afiliaciones && npm run test:resoluciones",
+    "test:migraciones": "node tests/migraciones.cjs",
+    "test:campanas": "node tests/campanas.cjs",
+    "test:afiliaciones": "node tests/afiliaciones.cjs",
+    "test:resoluciones": "node tests/resoluciones.cjs"
   },
   "dependencies": {
     "supabase": "^2.117.0"

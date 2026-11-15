@@ -213,23 +213,46 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 -- 4. POLÍTICAS RLS ESPECÍFICAS POR TABLA
 -- ====================================================================
 
--- Limpieza total de políticas previas heredadas (migraciones 0004, 0005)
--- para evitar colisiones y erradicar la recursión infinita (error 42P17).
-DO $$
-DECLARE
-    pol RECORD;
-BEGIN
-    FOR pol IN (
-        SELECT schemaname, tablename, policyname
-        FROM pg_policies
-        WHERE schemaname = 'public'
-    ) LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I', pol.policyname, pol.schemaname, pol.tablename);
-    END LOOP;
-END $$;
-
-
 -- --------------------------------------------------------------------
+-- Elimina únicamente políticas de las migraciones históricas 0004 y 0005.
+DROP POLICY IF EXISTS "universidades_insert_dueno" ON public.universidades;
+DROP POLICY IF EXISTS "universidades_update_dueno" ON public.universidades;
+DROP POLICY IF EXISTS "universidades_delete_dueno" ON public.universidades;
+DROP POLICY IF EXISTS "roles_select_authenticated" ON public.roles;
+DROP POLICY IF EXISTS "usuarios_select_dueno" ON public.usuarios;
+DROP POLICY IF EXISTS "usuarios_insert_dueno" ON public.usuarios;
+DROP POLICY IF EXISTS "usuarios_delete_dueno" ON public.usuarios;
+DROP POLICY IF EXISTS "campus_sedes_insert_dueno" ON public.campus_sedes;
+DROP POLICY IF EXISTS "campus_sedes_update_dueno" ON public.campus_sedes;
+DROP POLICY IF EXISTS "campus_sedes_delete_dueno" ON public.campus_sedes;
+DROP POLICY IF EXISTS "cafeterias_all_dueno" ON public.cafeterias;
+DROP POLICY IF EXISTS "productos_all_dueno" ON public.productos;
+DROP POLICY IF EXISTS "productos_select_empleado" ON public.productos;
+DROP POLICY IF EXISTS "cafeteria_usuarios_all_dueno" ON public.cafeteria_usuarios;
+DROP POLICY IF EXISTS "cafeteria_usuarios_select_own" ON public.cafeteria_usuarios;
+DROP POLICY IF EXISTS "pedidos_select_own" ON public.pedidos;
+DROP POLICY IF EXISTS "pedidos_select_dueno" ON public.pedidos;
+DROP POLICY IF EXISTS "pedidos_select_empleado" ON public.pedidos;
+DROP POLICY IF EXISTS "pedidos_insert_estudiante" ON public.pedidos;
+DROP POLICY IF EXISTS "detalles_pedido_select_own" ON public.detalles_pedido;
+DROP POLICY IF EXISTS "detalles_pedido_select_dueno_empleado" ON public.detalles_pedido;
+DROP POLICY IF EXISTS "pagos_select_own" ON public.pagos;
+DROP POLICY IF EXISTS "pagos_select_dueno" ON public.pagos;
+DROP POLICY IF EXISTS "dispositivos_select_own" ON public.dispositivos;
+DROP POLICY IF EXISTS "dispositivos_insert_own" ON public.dispositivos;
+DROP POLICY IF EXISTS "dispositivos_update_own" ON public.dispositivos;
+DROP POLICY IF EXISTS "dispositivos_delete_own" ON public.dispositivos;
+DROP POLICY IF EXISTS "alertas_stock_select_dueno" ON public.alertas_stock;
+DROP POLICY IF EXISTS "alertas_stock_manage_dueno" ON public.alertas_stock;
+DROP POLICY IF EXISTS "movimientos_inventario_select_dueno" ON public.movimientos_inventario;
+DROP POLICY IF EXISTS "movimientos_inventario_insert_dueno_empleado" ON public.movimientos_inventario;
+DROP POLICY IF EXISTS "logs_validacion_qr_select_dueno" ON public.logs_validacion_qr;
+DROP POLICY IF EXISTS "logs_validacion_qr_insert_empleado" ON public.logs_validacion_qr;
+DROP POLICY IF EXISTS "telegram_dueno_select_own" ON public.configuracion_telegram_dueno;
+DROP POLICY IF EXISTS "telegram_dueno_insert_own" ON public.configuracion_telegram_dueno;
+DROP POLICY IF EXISTS "telegram_dueno_update_own" ON public.configuracion_telegram_dueno;
+DROP POLICY IF EXISTS "telegram_dueno_delete_own" ON public.configuracion_telegram_dueno;
+
 -- 4.1 universidades
 -- --------------------------------------------------------------------
 DROP POLICY IF EXISTS universidades_select_public ON public.universidades;
