@@ -218,3 +218,28 @@ del directorio documental de V06 en el repositorio de aplicaciones. La
 migración y las comprobaciones estructurales no dependen de ese registro.
 El contrato y el alcance se documentan en
 `taller-integracion-3/docs/base-datos/validacion/V06-CAM-288-Cotizacion-carrito.md`.
+
+## S3-T6 / CAM-228 — grupos equivalentes
+
+`npm run test:migraciones` reconstruye también
+`20261117184822_crear_grupos_equivalentes.sql` con propietario sin superusuario y
+privilegios iniciales amplios. Comprueba RLS del catálogo, grants mínimos, clave
+foránea restrictiva, nulabilidad sin default, índice válido y catálogo vacío.
+No incorpora fixtures ni nuevas funciones auxiliares de aplicación.
+
+Las pruebas funcionales se ejecutan por separado en una base desechable con el
+historial completo: conservar productos anteriores sin grupo; crear y consultar
+grupos; rechazar duplicados, códigos no canónicos y referencias inexistentes;
+comprobar asignación propia, rechazo ajeno, recarga, desclasificación y CRUD
+anterior; comparar precios, stock, políticas y una cotización V06 antes/después.
+Las condiciones de entrada y resultados reales se conservan en el registro
+opcional `S3-T6-Registro-entradas-salidas.md` del repositorio de aplicaciones.
+
+El registro es evidencia textual independiente, no se ejecuta durante las
+migraciones ni las pruebas de estructura. Los datos ficticios solo existieron en
+PostgreSQL temporal, sin cargar seeds en Cloud o en la base de desarrollo. Las
+pruebas SQL emulan Auth y no acreditan GoTrue, HTTP ni interfaz de escritorio.
+
+Resultado local del 17 de noviembre de 2026: **50/50 casos funcionales aprobados**
+en PostgreSQL 17.12 con Node 22.23.5, más la reconstrucción completa de migraciones.
+La revisión independiente de Camilo sigue pendiente.

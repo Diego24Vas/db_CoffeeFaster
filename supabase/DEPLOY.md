@@ -36,6 +36,7 @@ comparar primero su historial: esta conciliación corresponde a `integracion3`.
    - `0022_s3_t5_crear_tabla_promociones.sql`
    - `0023_s3_t4_rpc_listar_oportunidades_campana.sql`
    - `20261117175958_cotizar_carrito_afiliado.sql`
+   - `20261117184822_crear_grupos_equivalentes.sql`
 4. Si aparece cualquier otra migración, detener el despliegue y contrastar el
    historial. No usar `--include-all`, `--include-seed` ni `db reset` en Cloud.
 5. La aplicación de las migraciones queda pendiente de autorización. Preparar
@@ -83,3 +84,26 @@ Revisar su definición instalada antes de publicar esta migración.
 V06 no cobra ni consume el beneficio. C07 conecta el endpoint; V07/V08 deben
 serializar, revalidar y registrar la atribución junto con el pago. La publicación
 en Cloud sigue pendiente de autorización específica.
+
+## S3-T6 / CAM-228: grupos equivalentes
+
+`20261117184822_crear_grupos_equivalentes.sql` crea el catálogo global
+`grupos_equivalentes` y añade a productos una referencia nullable e indexada.
+No carga datos ni clasifica productos existentes. La migración es transaccional;
+el tipo y la presentación de cada grupo forman una combinación única.
+
+La lectura del catálogo requiere `authenticated` y un UID de sesión. Solo el
+backend con `service_role` puede consultar y dar de alta combinaciones; no tiene
+UPDATE, DELETE ni TRUNCATE sobre el catálogo. Nunca entregar esa credencial al
+cliente. El propietario SQL conserva las operaciones administrativas revisadas.
+La clave foránea impide borrar o cambiar el ID de un grupo referenciado.
+
+Se conservan las políticas y permisos existentes de productos: la asignación
+del grupo respeta el alcance actual del personal de cada cafetería. Los códigos
+canónicos y su presentación deben acordarse con Camilo antes de cargar catálogo
+real. La revisión independiente de la migración sigue pendiente.
+
+Validar con `npm run test:migraciones`. La evidencia funcional separada reside en
+`taller-integracion-3/docs/base-datos/validacion/S3-T6-Registro-entradas-salidas.md`.
+La publicación en Cloud y las pantallas/consultas de tareas posteriores no forman
+parte de esta implementación local.
