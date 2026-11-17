@@ -5,7 +5,7 @@
 `npm run test:migraciones` verifica versiones únicas y compara los archivos con
 el historial de `integracion3` hasta `0017`, consultado en Cloud y guardado en
 `fixtures/historial-cloud.json`. Luego reconstruye todas las migraciones `0001`
-a V05 y la RPC de oportunidades S3-T4 en una base desechable, incluida la publicación Realtime.
+a V05 y las migraciones S3-T4 `0023`/`0024` en una base desechable, incluida la publicación Realtime.
 Las pendientes desde `0018` se ejecutan como propietario sin superusuario, con BYPASSRLS como
 el rol postgres de Supabase y permisos por defecto amplios que deben revocarse.
 Comprueba RLS, permisos finales y publicación de campañas.
@@ -16,7 +16,7 @@ de publicación y la conciliación del historial están en `supabase/DEPLOY.md`.
 
 Se verificó además `supabase db push --dry-run --skip-vault` con CLI 2.117.0
 contra una base local que reproducía el historial remoto hasta `0017`. Propuso
-`0018`, `0019`, `0020`, `0021` y `0022`, sin seeds ni roles. Esta simulación no ejecutó
+`0018` a `0024`, sin seeds ni roles. Esta simulación no ejecutó
 DDL en Cloud y no reemplaza comparar otra vez su historial antes de desplegar.
 
 ## V05 / CAM-172 — autorizar y resolver solicitudes
@@ -189,15 +189,22 @@ extraído bajo /tmp, sin conexión Cloud. La función auth.uid reproduce la lect
 del claim en PostgreSQL; no valida la firma de un JWT ni ejecuta PostgREST.
 El fixture mínimo utiliza el esquema de tabla de 0018 y aplica 0019 real.
 
-## S3-T4 — listado de oportunidades para estudiantes
+## S3-T4 — campañas vigentes para estudiantes
 
-La migración `0023_s3_t4_rpc_listar_oportunidades_campana.sql` añade una función de lectura sobre `campanas`; no crea tablas ni modifica la lectura directa o RPC existentes.
+`0023_s3_t4_rpc_listar_oportunidades_campana.sql` creó la RPC inicial, que incluía campañas futuras y `estado_vigencia`. Se conserva sin cambios porque pudo haberse aplicado en otros entornos y `CREATE OR REPLACE FUNCTION` no permite cambiar el tipo de retorno. `0024_s3_t4_rpc_campanas_vigentes.sql` se aplica después, reemplaza solo el cuerpo con la misma firma y conserva `estado_vigencia` con el valor `en_curso` para las campañas vigentes.
 
-- RPC: `listar_oportunidades_campana(p_cafeteria_id bigint)`. Devuelve `id`, `nombre`, `cafeteria_id`, `cafeteria_nombre`, `tipo` (el alcance guardado actualmente), `estado`, vigencias, tasas existentes y `estado_vigencia` (`futura` / `en_curso`). PostgREST entrega `[]` si no hay filas.
-- Estados listables: `pendiente_aceptacion`, `activa` y `aceptada`. Se excluyen borradores, pausadas, finalizadas y campañas vencidas. Las campañas futuras siguen siendo postulables y aparecen marcadas como `futura`.
-- Postularse no exige confirmación previa del dueño. Una campaña `pendiente_aceptacion` se devuelve con ese estado para que el cliente indique que la oferta todavía espera confirmación. La confirmación sigue usando la RPC existente y no se modifica aquí. La vigencia para canje y beneficios se valida en las tareas que implementen esas operaciones. La RPC existente de confirmación (0019) no acepta campañas antes de `vigencia_desde`; la RPC de resolución (0021) sí admite aprobar afiliaciones en `pendiente_aceptacion`. Por tanto, esta lectura permite postulación anticipada, pero no cambia ni impone una espera de aprobación hasta confirmar: esa coordinación queda como acuerdo de negocio aparte.
+- RPC final: `listar_oportunidades_campana(p_cafeteria_id bigint)`. Devuelve `id`, `nombre`, `cafeteria_id`, `cafeteria_nombre`, `tipo`, `estado`, `vigencia_desde`, `vigencia_hasta`, `tasa_descuento`, `tasa_comision` y `estado_vigencia` (`en_curso`). PostgREST entrega `[]` si no hay filas.
+- **Vigente** significa `vigencia_desde <= statement_timestamp() < vigencia_hasta`. El inicio es inclusivo y el fin exclusivo. La consulta usa el reloj de PostgreSQL, no el de la aplicación.
+- Estados visibles: únicamente `activa`. Se excluyen `borrador`, `pausada`, `finalizada`, `pendiente_aceptacion` y `aceptada`.
+  - `pendiente_aceptacion` queda fuera porque el dueño todavía no aceptó las condiciones; `obtener_campana_vigente` la incluye para el dueño y V05 puede aprobar afiliaciones, pero C01 exige una campaña vigente y activa para el beneficio.
+  - `aceptada` no tiene una transición en `0018`/`0019`/`0021`; `confirmar_condiciones_campana` deja la campaña en `activa` (`0019:109`). Su significado no puede establecerse con el código actual, por lo que no se expone. Si el negocio confirma que equivale a `activa`, debe agregarse en una migración posterior.
+- Se excluyen también las campañas de cafeterías con `activa = false`. La cafetería se limita con `p_cafeteria_id`; no se consultan otras cafeterías.
 - Requiere `auth.uid()` y una cuenta activa en `usuarios` con rol activo de estudiante. Usa `SECURITY DEFINER` solo para leer filas ocultas al estudiante por RLS; fija `search_path` vacío, califica objetos, valida identidad y concede `EXECUTE` únicamente a `authenticated`.
-- Errores: `42501` si falta sesión o la cuenta no es estudiante activo; `22023` si `p_cafeteria_id` es nulo o no positivo. Cafetería sin oportunidades, incluso inexistente, devuelve cero filas.
-- Se usan `tasa_descuento` y `tasa_comision` existentes. El desacuerdo con los dos descuentos descritos en C01/C02 queda fuera de esta RPC para acordarse aparte.
+- Errores: `42501` si falta sesión o la cuenta no es estudiante activo; `22023` si `p_cafeteria_id` es nulo o no positivo. Cafetería activa sin campañas, o inexistente, devuelve cero filas.
+- Se usan `tasa_descuento` y `tasa_comision` existentes. **No se mapean** a `descuento_normal_pct` ni `descuento_oferta_pct`. La incompatibilidad con los dos descuentos de C01/C02 queda como integración separada, fuera de S3-T4.
+- `0024` se prueba en dos recorridos: instalación limpia (`0023` y luego `0024`) y actualización desde la versión anterior de `0023` ya aplicada. Ambos verifican que la firma y `estado_vigencia` se conservan, que las futuras dejan de aparecer y que los permisos/RLS no cambian.
+- La prueba funcional cubre estudiante válido, sesión ausente, roles ajenos, campaña vigente/futura/pausada/vencida/borrador, `pendiente_aceptacion`/`aceptada`, otra cafetería, cafetería inactiva, límites de inicio/fin, lista vacía, campos/tasas, permisos y bloqueo del SELECT directo.
 
-Ejecutar con `npm run test:oportunidades`; `npm test` también incluye esta cobertura. No se aplicó la migración en Cloud.
+Validación local: 17 de noviembre de 2026, PostgreSQL 17.11 en un contenedor desechable; `npm test` completo, `test:oportunidades` y `test:oportunidades-upgrade` aprobados. La sesión se simula con `request.jwt.claim.sub` y `auth.uid()` local; no se valida la firma de un JWT ni se ejecuta PostgREST.
+
+Ejecutar con `npm run test:oportunidades` y `npm run test:oportunidades-upgrade`; `npm test` incluye ambas coberturas. No se aplicaron las migraciones en Cloud.

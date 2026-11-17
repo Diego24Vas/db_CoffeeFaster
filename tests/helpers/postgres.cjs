@@ -9,8 +9,8 @@ module.exports = async function conBaseTemporal(nombre, prueba) {
   const env = { ...process.env };
   for (const name of ['PGSERVICE', 'PGSERVICEFILE', 'PGHOSTADDR']) delete env[name];
   const comando = db => container
-    ? ['docker', ['exec', '-i', container, 'psql', '-U', 'postgres', '-d', db, '-XAt', '-v', 'ON_ERROR_STOP=1']]
-    : [process.env.TEST_PSQL || 'psql', ['-h', host, '-p', process.env.PGPORT || '5432', '-U', 'postgres', '-d', db, '-XAt', '-v', 'ON_ERROR_STOP=1']];
+    ? ['docker', ['exec', '-i', container, 'psql', '-U', 'postgres', '-d', db, '-XAtq', '-v', 'ON_ERROR_STOP=1']]
+    : [process.env.TEST_PSQL || 'psql', ['-h', host, '-p', process.env.PGPORT || '5432', '-U', 'postgres', '-d', db, '-XAtq', '-v', 'ON_ERROR_STOP=1']];
   const sql = (input, db = database) => {
     const [bin, args] = comando(db);
     return execFileSync(bin, args, { input, env, encoding: 'utf8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] }).trim();
