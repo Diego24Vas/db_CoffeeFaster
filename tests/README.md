@@ -208,3 +208,44 @@ El fixture mínimo utiliza el esquema de tabla de 0018 y aplica 0019 real.
 Validación local: 17 de noviembre de 2026, PostgreSQL 17.11 en un contenedor desechable; `npm test` completo, `test:oportunidades` y `test:oportunidades-upgrade` aprobados. La sesión se simula con `request.jwt.claim.sub` y `auth.uid()` local; no se valida la firma de un JWT ni se ejecuta PostgREST.
 
 Ejecutar con `npm run test:oportunidades` y `npm run test:oportunidades-upgrade`; `npm test` incluye ambas coberturas. No se aplicaron las migraciones en Cloud.
+
+## V06 / CAM-288 ÔÇö comprobaci├│n de estructura
+
+La migraci├│n `20261117175958_cotizar_carrito_afiliado.sql` se incorpora a
+`npm run test:migraciones`. Esta comprobaci├│n reconstruye las migraciones en
+una base temporal y verifica permisos de ejecuci├│n y acceso al esquema privado.
+No carga fixtures de cotizaci├│n ni inserta datos de negocio para V06.
+
+Los runners y fixtures funcionales de V06 fueron retirados. Esta comprobaci├│n
+estructural no acredita por s├¡ sola importes ni casos de negocio. La versi├│n
+actual se valid├│ por separado en un contenedor desechable, registrando los
+casos y las salidas en el archivo opcional `V06-Registro-entradas-salidas.md`
+del directorio documental de V06 en el repositorio de aplicaciones. La
+migraci├│n y las comprobaciones estructurales no dependen de ese registro.
+El contrato y el alcance se documentan en
+`taller-integracion-3/docs/base-datos/validacion/V06-CAM-288-Cotizacion-carrito.md`.
+
+## S3-T6 / CAM-228 ÔÇö grupos equivalentes
+
+`npm run test:migraciones` reconstruye tambi├®n
+`20261117184822_crear_grupos_equivalentes.sql` con propietario sin superusuario y
+privilegios iniciales amplios. Comprueba RLS del cat├ílogo, grants m├¡nimos, clave
+for├ínea restrictiva, nulabilidad sin default, ├¡ndice v├ílido y cat├ílogo vac├¡o.
+No incorpora fixtures ni nuevas funciones auxiliares de aplicaci├│n.
+
+Las pruebas funcionales se ejecutan por separado en una base desechable con el
+historial completo: conservar productos anteriores sin grupo; crear y consultar
+grupos; rechazar duplicados, c├│digos no can├│nicos y referencias inexistentes;
+comprobar asignaci├│n propia, rechazo ajeno, recarga, desclasificaci├│n y CRUD
+anterior; comparar precios, stock, pol├¡ticas y una cotizaci├│n V06 antes/despu├®s.
+Las condiciones de entrada y resultados reales se conservan en el registro
+opcional `S3-T6-Registro-entradas-salidas.md` del repositorio de aplicaciones.
+
+El registro es evidencia textual independiente, no se ejecuta durante las
+migraciones ni las pruebas de estructura. Los datos ficticios solo existieron en
+PostgreSQL temporal, sin cargar seeds en Cloud o en la base de desarrollo. Las
+pruebas SQL emulan Auth y no acreditan GoTrue, HTTP ni interfaz de escritorio.
+
+Resultado local del 17 de noviembre de 2026: **50/50 casos funcionales aprobados**
+en PostgreSQL 17.12 con Node 22.23.5, m├ís la reconstrucci├│n completa de migraciones.
+La revisi├│n independiente de Camilo sigue pendiente.
