@@ -9,7 +9,7 @@ const versiones = archivos.map(nombre => nombre.split('_')[0]);
 assert.equal(new Set(versiones).size, versiones.length, 'No puede haber versiones duplicadas');
 assert.deepEqual(archivos.slice(0, historial.length),
   historial.map(({ version, name }) => `${version}_${name}.sql`), 'Historial local alineado con Cloud');
-assert.deepEqual(versiones.slice(historial.length), ['0018', '0019', '0020', '0021', '0022'], 'Orden de las migraciones pendientes');
+assert.deepEqual(versiones.slice(historial.length), ['0018', '0019', '0020', '0021', '0022', '0023', '0024', '20261117175958', '20261117184822'], 'Orden de las migraciones pendientes');
 
 conBaseTemporal('migraciones', async ({ sql }) => {
   sql(`DO $$ BEGIN
@@ -62,5 +62,26 @@ conBaseTemporal('migraciones', async ({ sql }) => {
     AND NOT has_function_privilege('anon','resolver_solicitud_afiliacion(bigint,text,text)','EXECUTE')
     AND NOT has_function_privilege('service_role','resolver_solicitud_afiliacion(bigint,text,text)','EXECUTE')
     AND NOT has_function_privilege('authenticated','validar_codigo_afiliacion()','EXECUTE')`), 't');
+  assert.equal(sql(`SELECT has_function_privilege('authenticated','cotizar_carrito_afiliado(bigint,jsonb,text)','EXECUTE')
+    AND NOT has_function_privilege('anon','cotizar_carrito_afiliado(bigint,jsonb,text)','EXECUTE')
+    AND NOT has_function_privilege('service_role','cotizar_carrito_afiliado(bigint,jsonb,text)','EXECUTE')
+    AND NOT has_function_privilege('authenticated','precio_promocional(bigint,bigint,numeric)','EXECUTE')
+    AND NOT has_schema_privilege('anon','afiliados_privado','USAGE')`), 't');
+  assert.equal(sql(`SELECT relrowsecurity FROM pg_class WHERE oid='public.grupos_equivalentes'::regclass`), 't');
+  assert.equal(sql(`SELECT has_table_privilege('authenticated','grupos_equivalentes','SELECT')
+    AND NOT has_table_privilege('authenticated','grupos_equivalentes','INSERT')
+    AND NOT has_table_privilege('anon','grupos_equivalentes','SELECT')
+    AND has_table_privilege('service_role','grupos_equivalentes','INSERT')
+    AND NOT has_table_privilege('service_role','grupos_equivalentes','UPDATE')
+    AND NOT has_table_privilege('service_role','grupos_equivalentes','DELETE')
+    AND NOT has_table_privilege('service_role','grupos_equivalentes','TRUNCATE')`), 't');
+  assert.equal(sql(`SELECT is_nullable='YES' AND column_default IS NULL
+    FROM information_schema.columns WHERE table_schema='public' AND table_name='productos'
+      AND column_name='grupo_equivalente_id'`), 't');
+  assert.equal(sql(`SELECT confrelid='public.grupos_equivalentes'::regclass AND confdeltype='r' AND confupdtype='r'
+    FROM pg_constraint WHERE conrelid='public.productos'::regclass AND conname='productos_grupo_equivalente_fkey'`), 't');
+  assert.equal(sql(`SELECT indisvalid AND indpred IS NOT NULL FROM pg_index
+    WHERE indexrelid='public.productos_grupo_equivalente_idx'::regclass`), 't');
+  assert.equal(sql(`SELECT count(*) FROM public.grupos_equivalentes`), '0');
   console.log('Historial completo y migraciones pendientes aprobados, con RLS, permisos y publicación Realtime.');
 }).catch(error => { console.error(error.message); process.exitCode = 1; });

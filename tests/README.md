@@ -5,7 +5,7 @@
 `npm run test:migraciones` verifica versiones únicas y compara los archivos con
 el historial de `integracion3` hasta `0017`, consultado en Cloud y guardado en
 `fixtures/historial-cloud.json`. Luego reconstruye todas las migraciones `0001`
-a la migración de V05 en una base desechable, incluida la publicación Realtime.
+a V05 y las migraciones S3-T4 `0023`/`0024` en una base desechable, incluida la publicación Realtime.
 Las pendientes desde `0018` se ejecutan como propietario sin superusuario, con BYPASSRLS como
 el rol postgres de Supabase y permisos por defecto amplios que deben revocarse.
 Comprueba RLS, permisos finales y publicación de campañas.
@@ -16,7 +16,7 @@ de publicación y la conciliación del historial están en `supabase/DEPLOY.md`.
 
 Se verificó además `supabase db push --dry-run --skip-vault` con CLI 2.117.0
 contra una base local que reproducía el historial remoto hasta `0017`. Propuso
-`0018`, `0019`, `0020`, `0021` y `0022`, sin seeds ni roles. Esta simulación no ejecutó
+`0018` a `0024`, sin seeds ni roles. Esta simulación no ejecutó
 DDL en Cloud y no reemplaza comparar otra vez su historial antes de desplegar.
 
 ## V05 / CAM-172 — autorizar y resolver solicitudes
@@ -188,3 +188,64 @@ Validación local: 13 de noviembre de 2026, Node 22.16.0 y PostgreSQL 16.15
 extraído bajo /tmp, sin conexión Cloud. La función auth.uid reproduce la lectura
 del claim en PostgreSQL; no valida la firma de un JWT ni ejecuta PostgREST.
 El fixture mínimo utiliza el esquema de tabla de 0018 y aplica 0019 real.
+
+## S3-T4 — campañas vigentes para estudiantes
+
+`0023_s3_t4_rpc_listar_oportunidades_campana.sql` creó la RPC inicial, que incluía campañas futuras y `estado_vigencia`. Se conserva sin cambios porque pudo haberse aplicado en otros entornos y `CREATE OR REPLACE FUNCTION` no permite cambiar el tipo de retorno. `0024_s3_t4_rpc_campanas_vigentes.sql` se aplica después, reemplaza solo el cuerpo con la misma firma y conserva `estado_vigencia` con el valor `en_curso` para las campañas vigentes.
+
+- RPC final: `listar_oportunidades_campana(p_cafeteria_id bigint)`. Devuelve `id`, `nombre`, `cafeteria_id`, `cafeteria_nombre`, `tipo`, `estado`, `vigencia_desde`, `vigencia_hasta`, `tasa_descuento`, `tasa_comision` y `estado_vigencia` (`en_curso`). PostgREST entrega `[]` si no hay filas.
+- **Vigente** significa `vigencia_desde <= statement_timestamp() < vigencia_hasta`. El inicio es inclusivo y el fin exclusivo. La consulta usa el reloj de PostgreSQL, no el de la aplicación.
+- Estados visibles: únicamente `activa`. Se excluyen `borrador`, `pausada`, `finalizada`, `pendiente_aceptacion` y `aceptada`.
+  - `pendiente_aceptacion` queda fuera porque el dueño todavía no aceptó las condiciones; `obtener_campana_vigente` la incluye para el dueño y V05 puede aprobar afiliaciones, pero C01 exige una campaña vigente y activa para el beneficio.
+  - `aceptada` no tiene una transición en `0018`/`0019`/`0021`; `confirmar_condiciones_campana` deja la campaña en `activa` (`0019:109`). Su significado no puede establecerse con el código actual, por lo que no se expone. Si el negocio confirma que equivale a `activa`, debe agregarse en una migración posterior.
+- Se excluyen también las campañas de cafeterías con `activa = false`. La cafetería se limita con `p_cafeteria_id`; no se consultan otras cafeterías.
+- Requiere `auth.uid()` y una cuenta activa en `usuarios` con rol activo de estudiante. Usa `SECURITY DEFINER` solo para leer filas ocultas al estudiante por RLS; fija `search_path` vacío, califica objetos, valida identidad y concede `EXECUTE` únicamente a `authenticated`.
+- Errores: `42501` si falta sesión o la cuenta no es estudiante activo; `22023` si `p_cafeteria_id` es nulo o no positivo. Cafetería activa sin campañas, o inexistente, devuelve cero filas.
+- Se usan `tasa_descuento` y `tasa_comision` existentes. **No se mapean** a `descuento_normal_pct` ni `descuento_oferta_pct`. La incompatibilidad con los dos descuentos de C01/C02 queda como integración separada, fuera de S3-T4.
+- `0024` se prueba en dos recorridos: instalación limpia (`0023` y luego `0024`) y actualización desde la versión anterior de `0023` ya aplicada. Ambos verifican que la firma y `estado_vigencia` se conservan, que las futuras dejan de aparecer y que los permisos/RLS no cambian.
+- La prueba funcional cubre estudiante válido, sesión ausente, roles ajenos, campaña vigente/futura/pausada/vencida/borrador, `pendiente_aceptacion`/`aceptada`, otra cafetería, cafetería inactiva, límites de inicio/fin, lista vacía, campos/tasas, permisos y bloqueo del SELECT directo.
+
+Validación local: 17 de noviembre de 2026, PostgreSQL 17.11 en un contenedor desechable; `npm test` completo, `test:oportunidades` y `test:oportunidades-upgrade` aprobados. La sesión se simula con `request.jwt.claim.sub` y `auth.uid()` local; no se valida la firma de un JWT ni se ejecuta PostgREST.
+
+Ejecutar con `npm run test:oportunidades` y `npm run test:oportunidades-upgrade`; `npm test` incluye ambas coberturas. No se aplicaron las migraciones en Cloud.
+
+## V06 / CAM-288 ÔÇö comprobaci├│n de estructura
+
+La migraci├│n `20261117175958_cotizar_carrito_afiliado.sql` se incorpora a
+`npm run test:migraciones`. Esta comprobaci├│n reconstruye las migraciones en
+una base temporal y verifica permisos de ejecuci├│n y acceso al esquema privado.
+No carga fixtures de cotizaci├│n ni inserta datos de negocio para V06.
+
+Los runners y fixtures funcionales de V06 fueron retirados. Esta comprobaci├│n
+estructural no acredita por s├¡ sola importes ni casos de negocio. La versi├│n
+actual se valid├│ por separado en un contenedor desechable, registrando los
+casos y las salidas en el archivo opcional `V06-Registro-entradas-salidas.md`
+del directorio documental de V06 en el repositorio de aplicaciones. La
+migraci├│n y las comprobaciones estructurales no dependen de ese registro.
+El contrato y el alcance se documentan en
+`taller-integracion-3/docs/base-datos/validacion/V06-CAM-288-Cotizacion-carrito.md`.
+
+## S3-T6 / CAM-228 ÔÇö grupos equivalentes
+
+`npm run test:migraciones` reconstruye tambi├®n
+`20261117184822_crear_grupos_equivalentes.sql` con propietario sin superusuario y
+privilegios iniciales amplios. Comprueba RLS del cat├ílogo, grants m├¡nimos, clave
+for├ínea restrictiva, nulabilidad sin default, ├¡ndice v├ílido y cat├ílogo vac├¡o.
+No incorpora fixtures ni nuevas funciones auxiliares de aplicaci├│n.
+
+Las pruebas funcionales se ejecutan por separado en una base desechable con el
+historial completo: conservar productos anteriores sin grupo; crear y consultar
+grupos; rechazar duplicados, c├│digos no can├│nicos y referencias inexistentes;
+comprobar asignaci├│n propia, rechazo ajeno, recarga, desclasificaci├│n y CRUD
+anterior; comparar precios, stock, pol├¡ticas y una cotizaci├│n V06 antes/despu├®s.
+Las condiciones de entrada y resultados reales se conservan en el registro
+opcional `S3-T6-Registro-entradas-salidas.md` del repositorio de aplicaciones.
+
+El registro es evidencia textual independiente, no se ejecuta durante las
+migraciones ni las pruebas de estructura. Los datos ficticios solo existieron en
+PostgreSQL temporal, sin cargar seeds en Cloud o en la base de desarrollo. Las
+pruebas SQL emulan Auth y no acreditan GoTrue, HTTP ni interfaz de escritorio.
+
+Resultado local del 17 de noviembre de 2026: **50/50 casos funcionales aprobados**
+en PostgreSQL 17.12 con Node 22.23.5, m├ís la reconstrucci├│n completa de migraciones.
+La revisi├│n independiente de Camilo sigue pendiente.

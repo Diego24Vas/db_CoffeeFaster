@@ -1,7 +1,7 @@
 -- Datos propios de los runners de V04/V05. Nunca se aplica sobre una base existente.
 DO $$ BEGIN
-    IF current_database() !~ '^cf_v0[45]_test_[0-9]+_[0-9]+$' THEN
-        RAISE EXCEPTION 'El fixture requiere una base temporal cf_v04_test_* o cf_v05_test_*';
+    IF current_database() !~ '^cf_(v0[45]|oportunidades(?:_upgrade)?)_test_[0-9]+_[0-9]+$' THEN
+        RAISE EXCEPTION 'El fixture requiere una base temporal cf_v04_test_*, cf_v05_test_*, cf_oportunidades_test_* o cf_oportunidades_upgrade_test_*';
     END IF;
 END $$;
 
