@@ -35,6 +35,7 @@ comparar primero su historial: esta conciliación corresponde a `integracion3`.
    - `0021_autorizar_solicitudes_afiliacion.sql`
    - `0022_s3_t5_crear_tabla_promociones.sql`
    - `0023_s3_t4_rpc_listar_oportunidades_campana.sql`
+   - `20261117175958_cotizar_carrito_afiliado.sql`
 4. Si aparece cualquier otra migración, detener el despliegue y contrastar el
    historial. No usar `--include-all`, `--include-seed` ni `db reset` en Cloud.
 5. La aplicación de las migraciones queda pendiente de autorización. Preparar
@@ -58,3 +59,27 @@ nuevas versiones cortas anteriores a la de V05. Detalles y pruebas en `tests/REA
 ## S3-T4: oportunidades de afiliación
 
 `0023_s3_t4_rpc_listar_oportunidades_campana.sql` añade una RPC de lectura con validación de estudiante activo y estados/vigencias visibles documentados en `tests/README.md`. No modifica tablas ni las funciones de dueño. La migración y su prueba local quedan pendientes de despliegue; no se aplicaron a Cloud.
+
+
+## V06: estructura y cotización
+
+`20261117175958_cotizar_carrito_afiliado.sql` añade la tasa de ofertas y sus
+restricciones, el cálculo promocional y la cotización autenticada del carrito.
+Contiene únicamente definiciones de estructura, funciones y permisos: no inserta
+usuarios, productos, campañas, afiliaciones ni movimientos de ejemplo.
+
+La columna `tasa_descuento_oferta` permanece nullable para conservar las
+condiciones existentes. Se reutilizan los nombres de restricciones de C03.
+La protección de condiciones continúa en los mecanismos de C03/V05; V06 no
+incorpora triggers adicionales de administración de campañas.
+
+La función pública es una fachada sin privilegios elevados. El cálculo privado
+valida la sesión del usuario activo y consulta precios y elegibilidad. Mantener
+`afiliados_privado` fuera de los esquemas expuestos por la Data API.
+`precio_promocional` comparte la regla de promociones con el pago: mayor
+descuento vigente, sin acumulación, redondeo por unidad y mínimo de 1 CLP.
+Revisar su definición instalada antes de publicar esta migración.
+
+V06 no cobra ni consume el beneficio. C07 conecta el endpoint; V07/V08 deben
+serializar, revalidar y registrar la atribución junto con el pago. La publicación
+en Cloud sigue pendiente de autorización específica.

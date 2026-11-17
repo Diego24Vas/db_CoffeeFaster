@@ -201,3 +201,20 @@ La migración `0023_s3_t4_rpc_listar_oportunidades_campana.sql` añade una funci
 - Se usan `tasa_descuento` y `tasa_comision` existentes. El desacuerdo con los dos descuentos descritos en C01/C02 queda fuera de esta RPC para acordarse aparte.
 
 Ejecutar con `npm run test:oportunidades`; `npm test` también incluye esta cobertura. No se aplicó la migración en Cloud.
+
+
+## V06 / CAM-288 — comprobación de estructura
+
+La migración `20261117175958_cotizar_carrito_afiliado.sql` se incorpora a
+`npm run test:migraciones`. Esta comprobación reconstruye las migraciones en
+una base temporal y verifica permisos de ejecución y acceso al esquema privado.
+No carga fixtures de cotización ni inserta datos de negocio para V06.
+
+Los runners y fixtures funcionales de V06 fueron retirados. Esta comprobación
+estructural no acredita por sí sola importes ni casos de negocio. La versión
+actual se validó por separado en un contenedor desechable, registrando los
+casos y las salidas en el archivo opcional `V06-Registro-entradas-salidas.md`
+del directorio documental de V06 en el repositorio de aplicaciones. La
+migración y las comprobaciones estructurales no dependen de ese registro.
+El contrato y el alcance se documentan en
+`taller-integracion-3/docs/base-datos/validacion/V06-CAM-288-Cotizacion-carrito.md`.

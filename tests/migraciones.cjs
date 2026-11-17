@@ -9,7 +9,7 @@ const versiones = archivos.map(nombre => nombre.split('_')[0]);
 assert.equal(new Set(versiones).size, versiones.length, 'No puede haber versiones duplicadas');
 assert.deepEqual(archivos.slice(0, historial.length),
   historial.map(({ version, name }) => `${version}_${name}.sql`), 'Historial local alineado con Cloud');
-assert.deepEqual(versiones.slice(historial.length), ['0018', '0019', '0020', '0021', '0022', '0023'], 'Orden de las migraciones pendientes');
+assert.deepEqual(versiones.slice(historial.length), ['0018', '0019', '0020', '0021', '0022', '0023', '20261117175958'], 'Orden de las migraciones pendientes');
 
 conBaseTemporal('migraciones', async ({ sql }) => {
   sql(`DO $$ BEGIN
@@ -62,5 +62,10 @@ conBaseTemporal('migraciones', async ({ sql }) => {
     AND NOT has_function_privilege('anon','resolver_solicitud_afiliacion(bigint,text,text)','EXECUTE')
     AND NOT has_function_privilege('service_role','resolver_solicitud_afiliacion(bigint,text,text)','EXECUTE')
     AND NOT has_function_privilege('authenticated','validar_codigo_afiliacion()','EXECUTE')`), 't');
+  assert.equal(sql(`SELECT has_function_privilege('authenticated','cotizar_carrito_afiliado(bigint,jsonb,text)','EXECUTE')
+    AND NOT has_function_privilege('anon','cotizar_carrito_afiliado(bigint,jsonb,text)','EXECUTE')
+    AND NOT has_function_privilege('service_role','cotizar_carrito_afiliado(bigint,jsonb,text)','EXECUTE')
+    AND NOT has_function_privilege('authenticated','precio_promocional(bigint,bigint,numeric)','EXECUTE')
+    AND NOT has_schema_privilege('anon','afiliados_privado','USAGE')`), 't');
   console.log('Historial completo y migraciones pendientes aprobados, con RLS, permisos y publicación Realtime.');
 }).catch(error => { console.error(error.message); process.exitCode = 1; });
