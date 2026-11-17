@@ -34,10 +34,11 @@ comparar primero su historial: esta conciliación corresponde a `integracion3`.
    - `0020_modelar_afiliaciones_y_movimientos.sql`
    - `0021_autorizar_solicitudes_afiliacion.sql`
    - `0022_s3_t5_crear_tabla_promociones.sql`
+   - `0023_s3_t4_rpc_listar_oportunidades_campana.sql`
 4. Si aparece cualquier otra migración, detener el despliegue y contrastar el
    historial. No usar `--include-all`, `--include-seed` ni `db reset` en Cloud.
 5. La aplicación de las migraciones queda pendiente de autorización. Preparar
-   conjuntamente la versión de la aplicación que utiliza las RPC de `0019`.
+   conjuntamente la versión de la aplicación que utiliza las RPC de `0019` y `0023`.
 
 `0020` se aplica una sola vez y se registra en el historial. Su transacción revierte
 tablas, funciones y triggers si falla. No contiene datos ficticios ni recalcula
@@ -53,3 +54,7 @@ solicitudes; no debe usarse para sustituir la sesión al resolverlas. La migraci
 conserva su versión temporal generada por CLI y se ejecuta después de `0020`.
 Crear también las siguientes mediante `supabase migration new`, sin intercalar
 nuevas versiones cortas anteriores a la de V05. Detalles y pruebas en `tests/README.md`.
+
+## S3-T4: oportunidades de afiliación
+
+`0023_s3_t4_rpc_listar_oportunidades_campana.sql` añade una RPC de lectura con validación de estudiante activo y estados/vigencias visibles documentados en `tests/README.md`. No modifica tablas ni las funciones de dueño. La migración y su prueba local quedan pendientes de despliegue; no se aplicaron a Cloud.

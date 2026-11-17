@@ -5,7 +5,7 @@
 `npm run test:migraciones` verifica versiones únicas y compara los archivos con
 el historial de `integracion3` hasta `0017`, consultado en Cloud y guardado en
 `fixtures/historial-cloud.json`. Luego reconstruye todas las migraciones `0001`
-a la migración de V05 en una base desechable, incluida la publicación Realtime.
+a V05 y la RPC de oportunidades S3-T4 en una base desechable, incluida la publicación Realtime.
 Las pendientes desde `0018` se ejecutan como propietario sin superusuario, con BYPASSRLS como
 el rol postgres de Supabase y permisos por defecto amplios que deben revocarse.
 Comprueba RLS, permisos finales y publicación de campañas.
@@ -188,3 +188,16 @@ Validación local: 13 de noviembre de 2026, Node 22.16.0 y PostgreSQL 16.15
 extraído bajo /tmp, sin conexión Cloud. La función auth.uid reproduce la lectura
 del claim en PostgreSQL; no valida la firma de un JWT ni ejecuta PostgREST.
 El fixture mínimo utiliza el esquema de tabla de 0018 y aplica 0019 real.
+
+## S3-T4 — listado de oportunidades para estudiantes
+
+La migración `0023_s3_t4_rpc_listar_oportunidades_campana.sql` añade una función de lectura sobre `campanas`; no crea tablas ni modifica la lectura directa o RPC existentes.
+
+- RPC: `listar_oportunidades_campana(p_cafeteria_id bigint)`. Devuelve `id`, `nombre`, `cafeteria_id`, `cafeteria_nombre`, `tipo` (el alcance guardado actualmente), `estado`, vigencias, tasas existentes y `estado_vigencia` (`futura` / `en_curso`). PostgREST entrega `[]` si no hay filas.
+- Estados listables: `pendiente_aceptacion`, `activa` y `aceptada`. Se excluyen borradores, pausadas, finalizadas y campañas vencidas. Las campañas futuras siguen siendo postulables y aparecen marcadas como `futura`.
+- Postularse no exige confirmación previa del dueño. Una campaña `pendiente_aceptacion` se devuelve con ese estado para que el cliente indique que la oferta todavía espera confirmación. La confirmación sigue usando la RPC existente y no se modifica aquí. La vigencia para canje y beneficios se valida en las tareas que implementen esas operaciones. La RPC existente de confirmación (0019) no acepta campañas antes de `vigencia_desde`; la RPC de resolución (0021) sí admite aprobar afiliaciones en `pendiente_aceptacion`. Por tanto, esta lectura permite postulación anticipada, pero no cambia ni impone una espera de aprobación hasta confirmar: esa coordinación queda como acuerdo de negocio aparte.
+- Requiere `auth.uid()` y una cuenta activa en `usuarios` con rol activo de estudiante. Usa `SECURITY DEFINER` solo para leer filas ocultas al estudiante por RLS; fija `search_path` vacío, califica objetos, valida identidad y concede `EXECUTE` únicamente a `authenticated`.
+- Errores: `42501` si falta sesión o la cuenta no es estudiante activo; `22023` si `p_cafeteria_id` es nulo o no positivo. Cafetería sin oportunidades, incluso inexistente, devuelve cero filas.
+- Se usan `tasa_descuento` y `tasa_comision` existentes. El desacuerdo con los dos descuentos descritos en C01/C02 queda fuera de esta RPC para acordarse aparte.
+
+Ejecutar con `npm run test:oportunidades`; `npm test` también incluye esta cobertura. No se aplicó la migración en Cloud.
