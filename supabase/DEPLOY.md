@@ -85,6 +85,21 @@ V06 no cobra ni consume el beneficio. C07 conecta el endpoint; V07/V08 deben
 serializar, revalidar y registrar la atribuci├│n junto con el pago. La publicaci├│n
 en Cloud sigue pendiente de autorizaci├│n espec├¡fica.
 
+## V07 / CAM-175: primera compra por cafetería
+
+Aplicar `20261120204414_validar_primera_compra.sql` después de V06 y de las
+migraciones previas presentes en la rama. No modifica migraciones históricas.
+Añade un índice de pedidos pagados no cancelados, helpers privados y triggers
+de serialización y validación. La cotización conserva su firma y sus importes;
+`beneficio_usado` pasa a depender del historial del comprador en esa cafetería,
+incluidas las compras sin código, según la decisión confirmada para V07.
+
+Antes de publicar, ejecutar `npm test` en PostgreSQL aislado y contrastar el
+historial remoto y la definición instalada de V06: la migración aborta si cambió
+su comprobación original. No interpreta una cotización como reserva del beneficio.
+La integración transaccional del cobro corresponde a V08. El despliegue en Cloud
+continúa pendiente de autorización para esa operación.
+
 ## S3-T6 / CAM-228: grupos equivalentes
 
 `20261117184822_crear_grupos_equivalentes.sql` crea el cat├ílogo global

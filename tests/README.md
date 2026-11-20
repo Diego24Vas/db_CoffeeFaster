@@ -1,5 +1,39 @@
 # Pruebas de campañas y afiliaciones
 
+## V07 / CAM-175 — primera compra por comprador y cafetería
+
+La migración `20261120204414_validar_primera_compra.sql` implementa la regla
+de V07 confirmada para esta tarea: las compras pagadas y no canceladas, incluso
+sin código, consumen la elegibilidad en esa cafetería. Las compras fallidas,
+canceladas o revertidas mediante rollback no cuentan. Comprar en otra cafetería
+no consume la elegibilidad local. Esta decisión sustituye para V07 la regla
+global de C01 que conservaba el beneficio después de compras sin código.
+
+`npm run test:primera-compra` reconstruye el esquema real en una base temporal
+`cf_v07_test_*`. Comprueba la RPC pública con JWT simulado, precios y campañas,
+historial sin código, código propio con comisión cero, permisos de los helpers,
+rollback de la migración y compras, y concurrencia entre conexiones reales.
+Observa los bloqueos en `pg_locks`/`pg_stat_activity`: dos compras con código,
+compra sin código frente a compra con código, rollback de la primera y compras
+simultáneas en distintas cafeterías. Las consultas comprueban pedidos y comisiones
+persistidos. No instala datos de prueba en Cloud ni modifica el seed manual.
+
+Los helpers de historial y bloqueo permanecen privados. La cotización sigue
+siendo de solo lectura; al insertar pedidos y comisiones se conserva un bloqueo
+transaccional por comprador y cafetería hasta confirmar o revertir la compra.
+Se exige `READ COMMITTED` para revalidar con una vista actualizada tras esperar.
+V08 debe bloquear primero la Wallet, después tomar
+`afiliados_privado.bloquear_comprador(usuario, cafeteria)` y revalidar antes de
+calcular el importe y guardar pedido, débito y comisión en una sola transacción.
+V07 protege las escrituras, pero no incorpora el pago afiliado de V08.
+
+La migración conserva V06 sin editar el archivo histórico: sustituye únicamente
+su comprobación de elegibilidad. Si la definición instalada difiere de la esperada,
+aborta y revierte toda la migración para permitir una revisión del contrato.
+
+Validación local del 20 de noviembre de 2026: Node 22.21.1 y PostgreSQL 16.15
+aislado bajo `/tmp`, con Auth simulado. No acredita despliegue en Supabase Cloud.
+
 ## Compatibilidad de migraciones con Cloud
 
 `npm run test:migraciones` verifica versiones únicas y compara los archivos con
