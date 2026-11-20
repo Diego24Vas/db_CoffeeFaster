@@ -1,5 +1,21 @@
 # Preparación de despliegue de V04 y V05
 
+## V08 / CAM-176: pago afiliado
+
+`20261120210809_registrar_afiliacion_pago.sql` se aplica después de V06/V07.
+Crea una sobrecarga de seis parámetros de `procesar_pago`, con total aceptado,
+código y clave de idempotencia; no reemplaza la función legacy de tres parámetros.
+Conserva el pago con stock, promociones, franja y credenciales de retiro; añade
+la comisión pendiente en la misma transacción. La columna `stock_descontado` se
+añade solo si falta, sin marcar pedidos históricos como descontados.
+
+Antes de publicar: ejecutar `npm test` en una instancia local desechable y revisar
+el historial remoto. Conservar la cancelación con reposición de stock ya instalada
+en Cloud; esta migración no reemplaza `cancelar_pedido`. La firma, resultados y
+pruebas están en `tests/README.md`. C07 conecta la nueva sobrecarga al gateway;
+la llamada legacy no recibe código, total aceptado ni clave de reintento.
+La aplicación en Cloud requiere autorización para esa operación.
+
 Repositorio de base de datos: `db_CoffeeFaster`. Proyecto revisado:
 `integracion3` (`yvkpmqcynpygqjvaoiwn`), PostgreSQL 17.11.
 No se aplicaron migraciones en Cloud durante esta preparación.

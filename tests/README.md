@@ -1,5 +1,42 @@
 # Pruebas de campañas y afiliaciones
 
+## V08 / CAM-176 — afiliación dentro del pago
+
+La migración `20261120210809_registrar_afiliacion_pago.sql` añade la sobrecarga
+autenticada `procesar_pago(p_cafeteria_id bigint, p_items jsonb,
+p_franja_retiro text, p_codigo text, p_total_aceptado bigint,
+p_clave_idempotencia text)`. Los seis parámetros son obligatorios; código puede
+ser NULL. La firma legacy de tres parámetros conserva su definición.
+C07 debe pasar estos nombres desde el gateway y mapear las respuestas SQL al
+contrato HTTP. V08 no cambia móvil ni microservicios.
+
+El cálculo reutiliza V06 y la elegibilidad local confirmada en V07. Bloquea
+productos por ID, Wallet, comprador/cafetería, afiliación y campaña antes de
+confirmar el precio. Ante un total distinto devuelve `error=precio_actualizado`,
+`total_actualizado`, `descuento_afiliado`, el motivo y `cobrado=false`, sin
+modificar pedido, stock, Wallet, pagos o comisiones. Una desactivación o pausa
+elimina el descuento y la comisión; pagar el nuevo importe requiere confirmar
+con una clave nueva. La comisión válida nace pendiente e incluye base, tasa e
+importe históricos, incluso cuando el código propio genera comisión cero.
+
+`afiliados_privado.intentos_pago` guarda solicitud y respuesta por usuario/clave,
+sin permisos de tabla para los roles de API y con RLS habilitada. Repetir los
+mismos datos devuelve la respuesta guardada, incluidos los rechazos de negocio;
+reusar la clave con otros datos devuelve `clave_reintento_en_conflicto`. Los
+errores SQL revierten todas las escrituras y no reservan la clave. La estructura
+y cantidades del carrito siguen los límites de V06. El núcleo privilegiado
+permanece privado, valida JWT y solo admite ejecución autenticada.
+
+`npm run test:pago-afiliado` utiliza el esquema real y una base desechable
+`cf_v08_test_*`. Prueba importes de pedido/pago/Wallet/comisión, stock, promociones,
+código propio, código desactivado tras cotizar, pausa, precio modificado, saldo
+insuficiente, reintentos, conflicto de clave, permisos y un fallo después del
+débito que revierte toda la compra. Dos conexiones prueban la misma clave y dos
+claves distintas compitiendo por la primera compra.
+
+Validación local del 20 de noviembre de 2026: Node 22.21.1 y PostgreSQL 16.15
+aislado bajo `/tmp`, con Auth simulado. No se aplicó SQL en Supabase Cloud.
+
 ## V07 / CAM-175 — primera compra por comprador y cafetería
 
 La migración `20261120204414_validar_primera_compra.sql` implementa la regla
