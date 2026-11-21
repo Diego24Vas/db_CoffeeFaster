@@ -138,3 +138,19 @@ Validar con `npm run test:migraciones`. La evidencia funcional separada reside e
 `taller-integracion-3/docs/base-datos/validacion/S3-T6-Registro-entradas-salidas.md`.
 La publicaci├│n en Cloud y las pantallas/consultas de tareas posteriores no forman
 parte de esta implementaci├│n local.
+
+## V09 / CAM-177: reversión de comisión en cancelación
+
+Aplicar `20261121200029_revertir_comision_cancelacion.sql` después de V08 y sus
+migraciones previas. La RPC pública conserva firma y JSON; el núcleo privado
+integra reembolso, reposición de stock y compensación histórica en una transacción.
+Mantener `afiliados_privado` fuera de los esquemas expuestos por la Data API.
+
+Antes de publicar, contrastar la definición instalada de `cancelar_pedido` y el
+historial de migraciones con esta rama. Ejecutar `npm test` en PostgreSQL local.
+No reaplicar después el instalador antiguo `app-mobile/tabla_mobile/rpc_cancelar_pedido.sql`
+de Integra 3, que conserva la definición anterior a V09. La evidencia está en
+`tests/README.md` y `tests/cancelacion_afiliada.cjs`.
+
+La publicación del código en Git no aplica SQL en Supabase Cloud; esa operación
+requiere autorización específica y sigue pendiente.

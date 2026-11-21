@@ -1,5 +1,46 @@
 # Pruebas de campañas y afiliaciones
 
+## V09 / CAM-177 — reversión de comisión al cancelar
+
+La migración `20261121200029_revertir_comision_cancelacion.sql` sustituye
+`public.cancelar_pedido(p_pedido_id bigint)` sin cambiar su respuesta JSON.
+La API pública es `SECURITY INVOKER`; el núcleo `SECURITY DEFINER` está en
+`afiliados_privado`, con `search_path` vacío y ejecución solo autenticada.
+La identidad se obtiene de `mi_usuario_id()` y se comprueba la propiedad del pedido.
+
+Conserva la cancelación desde pendiente/pagado, el reembolso de `pedidos.total`
+y la reposición de stock únicamente cuando `stock_descontado=true`. Bloquea
+pedido → productos ordenados → Wallet → comisión. Al existir una comisión
+pendiente, marca el original como revertido e inserta su compensación negativa
+con el mismo pedido, afiliación, base y tasa históricos y `movimiento_origen_id`.
+Todo se confirma en una sola transacción. Una comisión disponible/revertida en
+un pedido todavía cancelable provoca error y rollback; no se amplían los estados
+cancelables ni se implementan devoluciones después de la entrega.
+
+El reintento devuelve `ya_cancelado`, sin repetir Wallet, stock ni compensación.
+Los pedidos sin comisión mantienen el flujo previo. Un código propio con comisión
+cero deja una compensación de cero. Pausar la campaña, desactivar el código o
+cambiar precios no altera los importes históricos. Los movimientos de reversión
+son evidencia: no deben restarse otra vez de un saldo que ya excluye las
+comisiones originales revertidas. No se modifican `pagos.estado` ni credenciales QR.
+
+Ejecutar `npm run test:cancelacion-afiliada` con `PGHOST` local, `PGPORT` y
+`TEST_PSQL`, o `TEST_POSTGRES_CONTAINER`, como los demás runners. La prueba crea
+y elimina `cf_v09_test_*`, con esquema real y Auth simulado; ejecuta compra V08 y
+cancelación con rol autenticado. Verifica importes, referencias persistidas,
+stock, pedidos históricos, reintento, dos sesiones concurrentes, permisos,
+rechazos y rollback provocado durante la inserción de la compensación. También
+comprueba rollback de la migración conservando la función anterior.
+
+Validación del 21 de noviembre de 2026: suite completa `npm test` aprobada con
+Node 22.21.1 y PostgreSQL 16.15 aislado bajo `/tmp`. No se aplicó SQL en Cloud.
+
+La fuente de V09 es esta migración. El instalador anterior en
+`taller-integracion-3/app-mobile/tabla_mobile/rpc_cancelar_pedido.sql` conserva
+la definición previa y no debe reaplicarse después de instalar V09.
+El script histórico `activar_stock_promociones_cloud.sql` ya rechaza ejecutarse
+si existe `cancelar_pedido`; no debe reutilizarse para actualizar V09.
+
 ## V08 / CAM-176 — afiliación dentro del pago
 
 La migración `20261120210809_registrar_afiliacion_pago.sql` añade la sobrecarga
