@@ -154,3 +154,13 @@ de Integra 3, que conserva la definición anterior a V09. La evidencia está en
 
 La publicación del código en Git no aplica SQL en Supabase Cloud; esa operación
 requiere autorización específica y sigue pendiente.
+
+## V11 / CAM-179 · Entrega con comisión afiliada
+
+Aplicar `20261122193030_habilitar_comision_en_entrega.sql` antes de publicar
+el `ms-pedidos` que llama a `confirmar_entrega_pedido`. Solo `service_role`
+puede ejecutar la RPC, con sus permisos existentes sobre pedidos y comisiones.
+La migración prepara `pedidos.qr_usado` si la columna aún no existe.
+
+Ejecutar `npm run test:entrega-afiliada` en PostgreSQL local. La prueba verifica
+la transición del pedido y el movimiento de comisión en la misma operación.
