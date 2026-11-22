@@ -361,3 +361,22 @@ pruebas SQL emulan Auth y no acreditan GoTrue, HTTP ni interfaz de escritorio.
 Resultado local del 17 de noviembre de 2026: **50/50 casos funcionales aprobados**
 en PostgreSQL 17.12 con Node 22.23.5, m├ís la reconstrucci├│n completa de migraciones.
 La revisi├│n independiente de Camilo sigue pendiente.
+
+## V11 / CAM-179 · Entrega con comisión afiliada
+
+Ejecuta `npm run test:entrega-afiliada` con `PGHOST` apuntando a PostgreSQL local
+o con `TEST_POSTGRES_CONTAINER` configurado para el contenedor local de Supabase.
+La prueba crea y elimina una base temporal.
+
+La prueba compara las filas persistidas de `pedidos` y `movimientos_comision`
+antes y después de confirmar la entrega con `service_role`. Cubre la campaña
+pausada después de registrar la comisión, QR y token concurrentes, credenciales
+rechazadas, un pedido sin afiliación y la reversión de ambas escrituras ante
+un fallo durante la acreditación.
+
+Resultado local con PostgreSQL 17.12 y Node 22.23.1. Para el pedido ficticio 201,
+solo una de las dos confirmaciones concurrentes devolvió una fila. El pedido
+quedó `entregado` con `qr_usado = true` y el movimiento 301 pasó a `disponible`
+con sus 1.000 CLP y tasa histórica del 10 %. El segundo uso conservó la fecha
+de entrega y el movimiento. Para el pedido 202, el fallo inducido dejó el
+pedido en `listo` y la comisión en `pendiente`.
