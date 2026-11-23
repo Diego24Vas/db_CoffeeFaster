@@ -1,5 +1,117 @@
 # Pruebas de campañas y afiliaciones
 
+## V09 / CAM-177 — reversión de comisión al cancelar
+
+La migración `20261121200029_revertir_comision_cancelacion.sql` sustituye
+`public.cancelar_pedido(p_pedido_id bigint)` sin cambiar su respuesta JSON.
+La API pública es `SECURITY INVOKER`; el núcleo `SECURITY DEFINER` está en
+`afiliados_privado`, con `search_path` vacío y ejecución solo autenticada.
+La identidad se obtiene de `mi_usuario_id()` y se comprueba la propiedad del pedido.
+
+Conserva la cancelación desde pendiente/pagado, el reembolso de `pedidos.total`
+y la reposición de stock únicamente cuando `stock_descontado=true`. Bloquea
+pedido → productos ordenados → Wallet → comisión. Al existir una comisión
+pendiente, marca el original como revertido e inserta su compensación negativa
+con el mismo pedido, afiliación, base y tasa históricos y `movimiento_origen_id`.
+Todo se confirma en una sola transacción. Una comisión disponible/revertida en
+un pedido todavía cancelable provoca error y rollback; no se amplían los estados
+cancelables ni se implementan devoluciones después de la entrega.
+
+El reintento devuelve `ya_cancelado`, sin repetir Wallet, stock ni compensación.
+Los pedidos sin comisión mantienen el flujo previo. Un código propio con comisión
+cero deja una compensación de cero. Pausar la campaña, desactivar el código o
+cambiar precios no altera los importes históricos. Los movimientos de reversión
+son evidencia: no deben restarse otra vez de un saldo que ya excluye las
+comisiones originales revertidas. No se modifican `pagos.estado` ni credenciales QR.
+
+Ejecutar `npm run test:cancelacion-afiliada` con `PGHOST` local, `PGPORT` y
+`TEST_PSQL`, o `TEST_POSTGRES_CONTAINER`, como los demás runners. La prueba crea
+y elimina `cf_v09_test_*`, con esquema real y Auth simulado; ejecuta compra V08 y
+cancelación con rol autenticado. Verifica importes, referencias persistidas,
+stock, pedidos históricos, reintento, dos sesiones concurrentes, permisos,
+rechazos y rollback provocado durante la inserción de la compensación. También
+comprueba rollback de la migración conservando la función anterior.
+
+Validación del 21 de noviembre de 2026: suite completa `npm test` aprobada con
+Node 22.21.1 y PostgreSQL 16.15 aislado bajo `/tmp`. No se aplicó SQL en Cloud.
+
+La fuente de V09 es esta migración. El instalador anterior en
+`taller-integracion-3/app-mobile/tabla_mobile/rpc_cancelar_pedido.sql` conserva
+la definición previa y no debe reaplicarse después de instalar V09.
+El script histórico `activar_stock_promociones_cloud.sql` ya rechaza ejecutarse
+si existe `cancelar_pedido`; no debe reutilizarse para actualizar V09.
+
+## V08 / CAM-176 — afiliación dentro del pago
+
+La migración `20261120210809_registrar_afiliacion_pago.sql` añade la sobrecarga
+autenticada `procesar_pago(p_cafeteria_id bigint, p_items jsonb,
+p_franja_retiro text, p_codigo text, p_total_aceptado bigint,
+p_clave_idempotencia text)`. Los seis parámetros son obligatorios; código puede
+ser NULL. La firma legacy de tres parámetros conserva su definición.
+C07 debe pasar estos nombres desde el gateway y mapear las respuestas SQL al
+contrato HTTP. V08 no cambia móvil ni microservicios.
+
+El cálculo reutiliza V06 y la elegibilidad local confirmada en V07. Bloquea
+productos por ID, Wallet, comprador/cafetería, afiliación y campaña antes de
+confirmar el precio. Ante un total distinto devuelve `error=precio_actualizado`,
+`total_actualizado`, `descuento_afiliado`, el motivo y `cobrado=false`, sin
+modificar pedido, stock, Wallet, pagos o comisiones. Una desactivación o pausa
+elimina el descuento y la comisión; pagar el nuevo importe requiere confirmar
+con una clave nueva. La comisión válida nace pendiente e incluye base, tasa e
+importe históricos, incluso cuando el código propio genera comisión cero.
+
+`afiliados_privado.intentos_pago` guarda solicitud y respuesta por usuario/clave,
+sin permisos de tabla para los roles de API y con RLS habilitada. Repetir los
+mismos datos devuelve la respuesta guardada, incluidos los rechazos de negocio;
+reusar la clave con otros datos devuelve `clave_reintento_en_conflicto`. Los
+errores SQL revierten todas las escrituras y no reservan la clave. La estructura
+y cantidades del carrito siguen los límites de V06. El núcleo privilegiado
+permanece privado, valida JWT y solo admite ejecución autenticada.
+
+`npm run test:pago-afiliado` utiliza el esquema real y una base desechable
+`cf_v08_test_*`. Prueba importes de pedido/pago/Wallet/comisión, stock, promociones,
+código propio, código desactivado tras cotizar, pausa, precio modificado, saldo
+insuficiente, reintentos, conflicto de clave, permisos y un fallo después del
+débito que revierte toda la compra. Dos conexiones prueban la misma clave y dos
+claves distintas compitiendo por la primera compra.
+
+Validación local del 20 de noviembre de 2026: Node 22.21.1 y PostgreSQL 16.15
+aislado bajo `/tmp`, con Auth simulado. No se aplicó SQL en Supabase Cloud.
+
+## V07 / CAM-175 — primera compra por comprador y cafetería
+
+La migración `20261120204414_validar_primera_compra.sql` implementa la regla
+de V07 confirmada para esta tarea: las compras pagadas y no canceladas, incluso
+sin código, consumen la elegibilidad en esa cafetería. Las compras fallidas,
+canceladas o revertidas mediante rollback no cuentan. Comprar en otra cafetería
+no consume la elegibilidad local. Esta decisión sustituye para V07 la regla
+global de C01 que conservaba el beneficio después de compras sin código.
+
+`npm run test:primera-compra` reconstruye el esquema real en una base temporal
+`cf_v07_test_*`. Comprueba la RPC pública con JWT simulado, precios y campañas,
+historial sin código, código propio con comisión cero, permisos de los helpers,
+rollback de la migración y compras, y concurrencia entre conexiones reales.
+Observa los bloqueos en `pg_locks`/`pg_stat_activity`: dos compras con código,
+compra sin código frente a compra con código, rollback de la primera y compras
+simultáneas en distintas cafeterías. Las consultas comprueban pedidos y comisiones
+persistidos. No instala datos de prueba en Cloud ni modifica el seed manual.
+
+Los helpers de historial y bloqueo permanecen privados. La cotización sigue
+siendo de solo lectura; al insertar pedidos y comisiones se conserva un bloqueo
+transaccional por comprador y cafetería hasta confirmar o revertir la compra.
+Se exige `READ COMMITTED` para revalidar con una vista actualizada tras esperar.
+V08 debe bloquear primero la Wallet, después tomar
+`afiliados_privado.bloquear_comprador(usuario, cafeteria)` y revalidar antes de
+calcular el importe y guardar pedido, débito y comisión en una sola transacción.
+V07 protege las escrituras, pero no incorpora el pago afiliado de V08.
+
+La migración conserva V06 sin editar el archivo histórico: sustituye únicamente
+su comprobación de elegibilidad. Si la definición instalada difiere de la esperada,
+aborta y revierte toda la migración para permitir una revisión del contrato.
+
+Validación local del 20 de noviembre de 2026: Node 22.21.1 y PostgreSQL 16.15
+aislado bajo `/tmp`, con Auth simulado. No acredita despliegue en Supabase Cloud.
+
 ## Compatibilidad de migraciones con Cloud
 
 `npm run test:migraciones` verifica versiones únicas y compara los archivos con
@@ -249,3 +361,22 @@ pruebas SQL emulan Auth y no acreditan GoTrue, HTTP ni interfaz de escritorio.
 Resultado local del 17 de noviembre de 2026: **50/50 casos funcionales aprobados**
 en PostgreSQL 17.12 con Node 22.23.5, m├ís la reconstrucci├│n completa de migraciones.
 La revisi├│n independiente de Camilo sigue pendiente.
+
+## V11 / CAM-179 · Entrega con comisión afiliada
+
+Ejecuta `npm run test:entrega-afiliada` con `PGHOST` apuntando a PostgreSQL local
+o con `TEST_POSTGRES_CONTAINER` configurado para el contenedor local de Supabase.
+La prueba crea y elimina una base temporal.
+
+La prueba compara las filas persistidas de `pedidos` y `movimientos_comision`
+antes y después de confirmar la entrega con `service_role`. Cubre la campaña
+pausada después de registrar la comisión, QR y token concurrentes, credenciales
+rechazadas, un pedido sin afiliación y la reversión de ambas escrituras ante
+un fallo durante la acreditación.
+
+Resultado local con PostgreSQL 17.12 y Node 22.23.1. Para el pedido ficticio 201,
+solo una de las dos confirmaciones concurrentes devolvió una fila. El pedido
+quedó `entregado` con `qr_usado = true` y el movimiento 301 pasó a `disponible`
+con sus 1.000 CLP y tasa histórica del 10 %. El segundo uso conservó la fecha
+de entrega y el movimiento. Para el pedido 202, el fallo inducido dejó el
+pedido en `listo` y la comisión en `pendiente`.

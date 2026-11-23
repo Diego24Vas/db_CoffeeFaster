@@ -9,7 +9,7 @@ const versiones = archivos.map(nombre => nombre.split('_')[0]);
 assert.equal(new Set(versiones).size, versiones.length, 'No puede haber versiones duplicadas');
 assert.deepEqual(archivos.slice(0, historial.length),
   historial.map(({ version, name }) => `${version}_${name}.sql`), 'Historial local alineado con Cloud');
-assert.deepEqual(versiones.slice(historial.length), ['0018', '0019', '0020', '0021', '0022', '0023', '0024', '20261117175958', '20261117184822'], 'Orden de las migraciones pendientes');
+assert.deepEqual(versiones.slice(historial.length), ['0018', '0019', '0020', '0021', '0022', '0023', '0024', '20261117175958', '20261117184822', '20261120204414', '20261120210809', '20261121200029', '20261122193030', '20261122200000', '20261122200100'], 'Orden de las migraciones pendientes');
 
 conBaseTemporal('migraciones', async ({ sql }) => {
   sql(`DO $$ BEGIN
@@ -41,6 +41,7 @@ conBaseTemporal('migraciones', async ({ sql }) => {
           END LOOP;
         END $$;
         ALTER PUBLICATION supabase_realtime OWNER TO cf_migration_owner;
+        ALTER FUNCTION public.cancelar_pedido(bigint) OWNER TO cf_migration_owner;
         ALTER DEFAULT PRIVILEGES FOR ROLE cf_migration_owner IN SCHEMA public
           GRANT EXECUTE ON FUNCTIONS TO anon,authenticated,service_role;
         ALTER DEFAULT PRIVILEGES FOR ROLE cf_migration_owner IN SCHEMA public
@@ -83,5 +84,9 @@ conBaseTemporal('migraciones', async ({ sql }) => {
   assert.equal(sql(`SELECT indisvalid AND indpred IS NOT NULL FROM pg_index
     WHERE indexrelid='public.productos_grupo_equivalente_idx'::regclass`), 't');
   assert.equal(sql(`SELECT count(*) FROM public.grupos_equivalentes`), '0');
+  assert.equal(sql(`SELECT has_function_privilege('service_role','confirmar_entrega_pedido(bigint,bigint,text)','EXECUTE')
+    AND NOT has_function_privilege('anon','confirmar_entrega_pedido(bigint,bigint,text)','EXECUTE')
+    AND NOT has_function_privilege('authenticated','confirmar_entrega_pedido(bigint,bigint,text)','EXECUTE')
+    AND NOT prosecdef FROM pg_proc WHERE oid='public.confirmar_entrega_pedido(bigint,bigint,text)'::regprocedure`), 't');
   console.log('Historial completo y migraciones pendientes aprobados, con RLS, permisos y publicación Realtime.');
 }).catch(error => { console.error(error.message); process.exitCode = 1; });

@@ -1,5 +1,21 @@
 # Preparación de despliegue de V04 y V05
 
+## V08 / CAM-176: pago afiliado
+
+`20261120210809_registrar_afiliacion_pago.sql` se aplica después de V06/V07.
+Crea una sobrecarga de seis parámetros de `procesar_pago`, con total aceptado,
+código y clave de idempotencia; no reemplaza la función legacy de tres parámetros.
+Conserva el pago con stock, promociones, franja y credenciales de retiro; añade
+la comisión pendiente en la misma transacción. La columna `stock_descontado` se
+añade solo si falta, sin marcar pedidos históricos como descontados.
+
+Antes de publicar: ejecutar `npm test` en una instancia local desechable y revisar
+el historial remoto. Conservar la cancelación con reposición de stock ya instalada
+en Cloud; esta migración no reemplaza `cancelar_pedido`. La firma, resultados y
+pruebas están en `tests/README.md`. C07 conecta la nueva sobrecarga al gateway;
+la llamada legacy no recibe código, total aceptado ni clave de reintento.
+La aplicación en Cloud requiere autorización para esa operación.
+
 Repositorio de base de datos: `db_CoffeeFaster`. Proyecto revisado:
 `integracion3` (`yvkpmqcynpygqjvaoiwn`), PostgreSQL 17.11.
 No se aplicaron migraciones en Cloud durante esta preparación.
@@ -85,6 +101,21 @@ V06 no cobra ni consume el beneficio. C07 conecta el endpoint; V07/V08 deben
 serializar, revalidar y registrar la atribuci├│n junto con el pago. La publicaci├│n
 en Cloud sigue pendiente de autorizaci├│n espec├¡fica.
 
+## V07 / CAM-175: primera compra por cafetería
+
+Aplicar `20261120204414_validar_primera_compra.sql` después de V06 y de las
+migraciones previas presentes en la rama. No modifica migraciones históricas.
+Añade un índice de pedidos pagados no cancelados, helpers privados y triggers
+de serialización y validación. La cotización conserva su firma y sus importes;
+`beneficio_usado` pasa a depender del historial del comprador en esa cafetería,
+incluidas las compras sin código, según la decisión confirmada para V07.
+
+Antes de publicar, ejecutar `npm test` en PostgreSQL aislado y contrastar el
+historial remoto y la definición instalada de V06: la migración aborta si cambió
+su comprobación original. No interpreta una cotización como reserva del beneficio.
+La integración transaccional del cobro corresponde a V08. El despliegue en Cloud
+continúa pendiente de autorización para esa operación.
+
 ## S3-T6 / CAM-228: grupos equivalentes
 
 `20261117184822_crear_grupos_equivalentes.sql` crea el cat├ílogo global
@@ -107,3 +138,29 @@ Validar con `npm run test:migraciones`. La evidencia funcional separada reside e
 `taller-integracion-3/docs/base-datos/validacion/S3-T6-Registro-entradas-salidas.md`.
 La publicaci├│n en Cloud y las pantallas/consultas de tareas posteriores no forman
 parte de esta implementaci├│n local.
+
+## V09 / CAM-177: reversión de comisión en cancelación
+
+Aplicar `20261121200029_revertir_comision_cancelacion.sql` después de V08 y sus
+migraciones previas. La RPC pública conserva firma y JSON; el núcleo privado
+integra reembolso, reposición de stock y compensación histórica en una transacción.
+Mantener `afiliados_privado` fuera de los esquemas expuestos por la Data API.
+
+Antes de publicar, contrastar la definición instalada de `cancelar_pedido` y el
+historial de migraciones con esta rama. Ejecutar `npm test` en PostgreSQL local.
+No reaplicar después el instalador antiguo `app-mobile/tabla_mobile/rpc_cancelar_pedido.sql`
+de Integra 3, que conserva la definición anterior a V09. La evidencia está en
+`tests/README.md` y `tests/cancelacion_afiliada.cjs`.
+
+La publicación del código en Git no aplica SQL en Supabase Cloud; esa operación
+requiere autorización específica y sigue pendiente.
+
+## V11 / CAM-179 · Entrega con comisión afiliada
+
+Aplicar `20261122193030_habilitar_comision_en_entrega.sql` antes de publicar
+el `ms-pedidos` que llama a `confirmar_entrega_pedido`. Solo `service_role`
+puede ejecutar la RPC, con sus permisos existentes sobre pedidos y comisiones.
+La migración prepara `pedidos.qr_usado` si la columna aún no existe.
+
+Ejecutar `npm run test:entrega-afiliada` en PostgreSQL local. La prueba verifica
+la transición del pedido y el movimiento de comisión en la misma operación.
