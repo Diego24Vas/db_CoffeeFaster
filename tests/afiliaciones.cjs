@@ -44,6 +44,26 @@ conBaseTemporal('v04', async ({ sql, sqlAsync }) => {
       SELECT test_assert((SELECT count(*)=${solicitudes} FROM solicitudes_afiliacion),'solicitudes autorizadas');
       SELECT test_assert((SELECT count(*)=${movimientos} FROM movimientos_comision),'movimientos autorizados');`);
   }
+  for (const [usuario, propia, ajena, movimiento, movimientoAjeno, monto] of [
+    [1, 1, 2, 301, 302, 1000],
+    [3, 2, 1, 302, 301, 500],
+  ]) {
+    const lecturaPropia = `
+      SELECT test_assert((SELECT array_agg(id) = ARRAY[${propia}]::bigint[] FROM campanas),
+        'solo la campaña propia queda visible');
+      SELECT test_assert((SELECT array_agg(id) = ARRAY[${movimiento}]::bigint[]
+        AND sum(monto_clp) = ${monto} FROM movimientos_comision),
+        'solo la comisión propia queda visible con el monto esperado');`;
+    comprobar(`V02: dueño ${usuario}, campaña ${propia} y comisión ${movimiento} (${monto} CLP) antes y después; campaña ${ajena} y comisión ${movimientoAjeno} devuelven cero filas`, `
+      BEGIN;
+      ${sesion(usuario)}
+      ${lecturaPropia}
+      SELECT test_assert(NOT EXISTS(SELECT FROM campanas WHERE id = ${ajena}), 'campaña ajena oculta');
+      SELECT test_assert(NOT EXISTS(SELECT FROM movimientos_comision WHERE id = ${movimientoAjeno}),
+        'comisión ajena oculta');
+      ${lecturaPropia}
+      ROLLBACK;`);
+  }
   comprobar('sin sesión no se revelan solicitudes', `SET ROLE authenticated;
     SELECT test_assert((SELECT count(*)=0 FROM solicitudes_afiliacion),'sin sesión');`);
   comprobar('anon no lee las tablas', `SET SESSION AUTHORIZATION cf_v04_authenticator; SET ROLE anon;
