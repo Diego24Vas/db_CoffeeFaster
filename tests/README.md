@@ -380,3 +380,55 @@ quedó `entregado` con `qr_usado = true` y el movimiento 301 pasó a `disponible
 con sus 1.000 CLP y tasa histórica del 10 %. El segundo uso conservó la fecha
 de entrega y el movimiento. Para el pedido 202, el fallo inducido dejó el
 pedido en `listo` y la comisión en `pendiente`.
+
+
+## V12 / CAM-181 — consulta de saldo del afiliado
+
+Migración: `20261118211348_consulta_saldo_afiliado.sql`, después de V04/V05.
+No requiere V07, V08 ni V11.
+
+RPC: `SELECT * FROM public.consultar_saldo_afiliado();`, con sesión de estudiante
+y rol authenticated. No acepta identificadores de usuario. Devuelve una fila con
+pendiente_clp, disponible_clp y retirado_clp (numeric, importes enteros en CLP).
+Un consumidor debe conservar precisión decimal si supera Number.MAX_SAFE_INTEGER.
+
+- Pendiente: suma de comisiones originales pendientes.
+- Disponible: comisiones originales disponibles menos retiros confirmados.
+- Retirado: suma de retiros confirmados.
+
+Originales revertidos y sus reversiones quedan excluidos sin doble descuento.
+Comisiones y retiros se agregan por separado, en una sola consulta, evitando
+multiplicar importes. Un estudiante activo sin movimientos recibe ceros.
+Código desactivado o campaña finalizada conservan el historial y el saldo.
+Se reutiliza estudiante_afiliacion_id() para validar sesión, cuenta y rol.
+La RPC es SECURITY INVOKER y respeta RLS; dueños, empleados, cuentas/roles inactivos
+y sesiones sin estudiante válido reciben 42501.
+
+La nueva tabla retiros_afiliado contiene solo retiros confirmados, con importe
+positivo, estudiante y fecha. Tiene RLS de lectura propia, historial inmutable
+y ninguna escritura concedida a roles de API. V13 implementará el control atómico
+del saldo y la inserción del retiro en una misma transacción; V14 podrá añadir
+referencia y clave idempotente. Los intentos rechazados nunca se insertan aquí.
+La consulta no guarda otro saldo ni utiliza la Wallet de compra. No oculta un
+saldo negativo: V13 deberá impedir el débito que lo produciría.
+
+### Evidencia reproducible
+
+Ejecutar `npm run test:saldo-afiliado` con las variables locales de la sección
+Ejecución aislada. El runner crea y elimina su propia base cf_v12_test_*.
+
+| Escenario | Pendiente | Disponible | Retirado |
+|---|---:|---:|---:|
+| Sin movimientos | 0 | 0 | 0 |
+| Dos comisiones pendientes | 1500 | 0 | 0 |
+| Comisión disponible 1000, pendiente 500, retiros 200 + 300 | 500 | 500 | 500 |
+| Reversión de 500 y nueva comisión pendiente 800 | 800 | 500 | 500 |
+| Otro afiliado con comisión disponible 700 y retiro 100 | 0 | 600 | 100 |
+
+También comprueba aislamiento entre usuarios, permisos con defaults amplios,
+RLS, sesiones inválidas, código desactivado, campaña finalizada, historial
+inmutable y rollback de la migración ante un fallo.
+
+Validación local: PostgreSQL 18.6 desechable, cliente SQL temporal y Auth mínimo.
+No ejecuta PostgREST ni aplica cambios en Cloud. El proyecto declara PostgreSQL 17
+como versión objetivo; esta ejecución no certifica esa versión.
