@@ -100,14 +100,8 @@ temporal('v08', async ({sql,sqlAsync}) => {
   assert.equal(JSON.parse(sql(`BEGIN; UPDATE productos SET stock=0 WHERE id=401;
     ${sesion(23)} ${pagar('sin-stock')} ROLLBACK;`)).motivo,'stock_insuficiente');
   assert.equal(estado(),antesStock);
-  const antesFallo = estado();
-  sql(`CREATE FUNCTION public.fallar_v08() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fallo_controlado_v08'; END $$;
-    CREATE TRIGGER fallar_v08 BEFORE INSERT ON movimientos_comision FOR EACH ROW EXECUTE FUNCTION fallar_v08();`);
-  assert.throws(() => sql(sesion(25)+pagar('rollback')), /Command failed/);
-  assert.equal(estado(),antesFallo);
-  assert.equal(sql("SELECT count(*) FROM afiliados_privado.intentos_pago WHERE usuario_id=25 AND clave='rollback'"),'0');
-  sql('DROP TRIGGER fallar_v08 ON movimientos_comision; DROP FUNCTION fallar_v08()');
-  assert.equal(compra(25,pagar('rollback')).ok,true);
+  const casoV15 = fs.readFileSync(path.join(__dirname, 'sql/v15_reversion_compra_afiliada.sql'), 'utf8');
+  console.log(sql(casoV15));
 
   for (const rol of ['anon','authenticated','service_role']) {
     assert.equal(sql(`SELECT has_table_privilege('${rol}','afiliados_privado.intentos_pago','SELECT') OR
