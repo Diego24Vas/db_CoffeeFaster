@@ -432,3 +432,25 @@ inmutable y rollback de la migración ante un fallo.
 Validación local: PostgreSQL 18.6 desechable, cliente SQL temporal y Auth mínimo.
 No ejecuta PostgREST ni aplica cambios en Cloud. El proyecto declara PostgreSQL 17
 como versión objetivo; esta ejecución no certifica esa versión.
+
+## V13 / CAM-182 — retiro simulado
+
+Ejecutar `npm run test:retiro-simulado` con la configuración PostgreSQL de
+**Ejecución aislada**. El runner crea una base temporal `cf_v13_test_*`.
+
+La RPC `public.registrar_retiro_simulado(p_monto_clp numeric)` usa la sesión del
+estudiante y espera un importe entero positivo en CLP. El destino ficticio es fijo.
+Devuelve `ok: true`, `monto_clp`, `destino` y `disponible_clp` al confirmar, o
+`ok: false` con motivo `monto_invalido` o `saldo_insuficiente`. La operación
+usa el aislamiento predeterminado de PostgREST, `READ COMMITTED`.
+
+| Caso con saldo inicial de 1000 CLP | Resultado esperado y verificado | Retiros persistidos |
+| --- | --- | --- |
+| Solicitar 1001 CLP | Saldo insuficiente y disponible de 1000 | Ninguno |
+| Dos solicitudes concurrentes de 600 CLP | Una confirmada, una rechazada y disponible de 400 | Un retiro de 600 |
+| Solicitar los 400 CLP restantes | Retiro confirmado y disponible de 0 | Dos retiros, 600 y 400 |
+| Solicitar 1 CLP con saldo cero | Saldo insuficiente y disponible de 0 | Los mismos dos retiros |
+
+El runner también verifica importes inválidos, acceso sin sesión autorizada
+y aislamiento entre afiliados. V14 incorpora la referencia del comprobante y
+la clave de idempotencia.

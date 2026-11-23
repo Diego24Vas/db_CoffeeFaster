@@ -1,6 +1,6 @@
 -- Datos propios de los runners de afiliaciones. Nunca se aplica sobre una base existente.
 DO $$ BEGIN
-    IF current_database() !~ '^cf_(v0[45789]|v1[12]|oportunidades(?:_upgrade)?)_test_[0-9]+_[0-9]+$' THEN
+    IF current_database() !~ '^cf_(v0[45789]|v1[123]|oportunidades(?:_upgrade)?)_test_[0-9]+_[0-9]+$' THEN
         RAISE EXCEPTION 'El fixture de afiliaciones requiere una base temporal de pruebas';
     END IF;
 END $$;
