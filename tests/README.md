@@ -454,3 +454,23 @@ usa el aislamiento predeterminado de PostgREST, `READ COMMITTED`.
 El runner también verifica importes inválidos, acceso sin sesión autorizada
 y aislamiento entre afiliados. V14 incorpora la referencia del comprobante y
 la clave de idempotencia.
+
+## V14 / CAM-249 — comprobante del retiro simulado
+
+Ejecutar `npm run test:retiro-simulado` en el entorno de pruebas aislado. El
+runner verifica V13 y aplica la migración V14 sobre un historial con retiros.
+
+Los clientes nuevos envían `p_monto_clp` y `p_clave_idempotencia` a la misma RPC.
+La clave debe contener texto y ocupar hasta 128 bytes. Su alcance es la cuenta
+autenticada. El campo `disponible_clp` en el comprobante muestra el disponible
+inmediatamente posterior al retiro. Consultar V12 para obtener el saldo actual.
+La firma V13 de un argumento permanece disponible con una clave generada por el
+servidor en cada llamada. Para reintentar, el cliente debe enviar su propia clave.
+
+| Caso | Resultado comprobado |
+| --- | --- |
+| Dos solicitudes simultáneas de 500 CLP con la misma clave y saldo de 500 CLP | Ambas devuelven el mismo comprobante. Persiste un retiro y el saldo queda en cero. |
+| Reintento con saldo agotado | Se recupera la referencia original y el historial permanece igual. |
+| Misma clave con otro importe | Devuelve `conflicto_idempotencia` y conserva saldo e historial. |
+| Otra cuenta usa la misma clave | Recibe su propio comprobante y referencia. |
+| Historial de V13 | Las filas anteriores permanecen con sus importes originales. |
