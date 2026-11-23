@@ -148,5 +148,45 @@ temporal('v08', async ({sql,sqlAsync}) => {
   assert.equal(segunda.error,'precio_actualizado');
   assert.equal(segunda.motivo,'beneficio_usado');
   assert.equal(sql('SELECT count(*) FROM pedidos WHERE usuario_id=27'),'1');
+
+  // V10: cantidades múltiples y una comisión que redondea desde 284,5 CLP.
+  sql('UPDATE productos SET precio=1003 WHERE id=401');
+  const carritoV10 = '[{"producto_id":401,"cantidad":2},{"producto_id":402,"cantidad":3}]';
+  const verificarImportes = (usuario, codigo, esperado) => {
+    const cotizacion = compra(usuario, `SELECT to_jsonb(c)
+      FROM public.cotizar_carrito_afiliado(1,'${carritoV10}',${codigo}) c;`);
+    assert.deepEqual(cotizacion, esperado);
+    const confirmar = pagar('v10-mixto', cotizacion.total, codigo, carritoV10);
+    const pago = compra(usuario, confirmar);
+    assert.equal(pago.ok, true);
+    assert.equal(pago.estado, 'pendiente');
+    assert.equal(pago.pago_estado, 'pagado');
+    assert.equal(pago.total_pagado, cotizacion.total);
+    assert.equal(pago.descuento_afiliado, cotizacion.descuento_afiliado);
+    assert.equal(pago.comision, cotizacion.comision);
+    assert.equal(pago.saldo_restante, 100000 - cotizacion.total);
+    assert.equal(sql(`SELECT saldo_actual FROM wallets WHERE usuario_id=${usuario}`), String(pago.saldo_restante));
+    const id = pago.pedido_id;
+    assert.equal(sql(`SELECT total=${cotizacion.total} AND pago_estado='pagado' FROM pedidos WHERE id=${id}`), 't');
+    assert.equal(sql(`SELECT count(*)=1 AND sum(monto)=${cotizacion.total}
+      FROM pagos WHERE pedido_id=${id} AND estado='aprobado'`), 't');
+    assert.equal(sql(`SELECT count(*)=1 AND sum(monto)=-${cotizacion.total}
+      FROM movimientos_wallet WHERE pedido_id=${id} AND tipo='compra'`), 't');
+    assert.equal(sql(`SELECT sum(subtotal) FROM detalles_pedido WHERE pedido_id=${id}`), '3206.00');
+    const persistido = estado();
+    assert.deepEqual(compra(usuario, confirmar), pago);
+    assert.equal(estado(), persistido);
+    return id;
+  };
+
+  const afiliadoV10 = verificarImportes(28, "'CAFE-11'",
+    { subtotal: 3206, descuento_afiliado: 361, total: 2845, comision: 285, motivo: null });
+  assert.equal(sql(`SELECT count(*)=1 AND bool_and(base_calculo_clp=2845 AND monto_clp=285
+    AND tasa_comision=10 AND estado='pendiente' AND tipo='comision')
+    FROM movimientos_comision WHERE pedido_id=${afiliadoV10}`), 't');
+  const normalV10 = verificarImportes(29, 'NULL',
+    { subtotal: 3206, descuento_afiliado: 0, total: 3206, comision: 0, motivo: 'sin_codigo' });
+  assert.equal(sql(`SELECT count(*) FROM movimientos_comision WHERE pedido_id=${normalV10}`), '0');
+  console.log('V10 aprobado: carrito mixto de 3.206 CLP; cobro afiliado de 2.845 CLP con comisión de 285 CLP; compra normal de 3.206 CLP sin comisión.');
   console.log('V08 aprobado: pago atómico, importes históricos, reconfirmación, desactivación, reintentos, rollback, permisos y concurrencia real.');
 }).catch(error=>{ console.error(error); process.exitCode=1; });
