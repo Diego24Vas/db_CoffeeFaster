@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "seed": "docker exec -i supabase_db_db_CoffeeFaster psql -U postgres -d postgres < supabase/seed_manual.sql",
-    "test": "npm run test:migraciones && npm run test:campanas && npm run test:afiliaciones && npm run test:oportunidades && npm run test:oportunidades-upgrade && npm run test:resoluciones && npm run test:primera-compra && npm run test:pago-afiliado && npm run test:cancelacion-afiliada && npm run test:entrega-afiliada",
+    "test": "npm run test:migraciones && npm run test:campanas && npm run test:afiliaciones && npm run test:oportunidades && npm run test:oportunidades-upgrade && npm run test:resoluciones && npm run test:primera-compra && npm run test:pago-afiliado && npm run test:cancelacion-afiliada && npm run test:entrega-afiliada && npm run test:saldo-afiliado",
     "test:migraciones": "node tests/migraciones.cjs",
     "test:campanas": "node tests/campanas.cjs",
     "test:afiliaciones": "node tests/afiliaciones.cjs",
@@ -13,7 +13,8 @@
     "test:primera-compra": "node tests/primera_compra.cjs",
     "test:pago-afiliado": "node tests/pago_afiliado.cjs",
     "test:cancelacion-afiliada": "node tests/cancelacion_afiliada.cjs",
-    "test:entrega-afiliada": "node tests/entrega_afiliada.cjs"
+    "test:entrega-afiliada": "node tests/entrega_afiliada.cjs",
+    "test:saldo-afiliado": "node tests/saldo_afiliado.cjs"
   },
   "dependencies": {
     "supabase": "^2.117.0"
