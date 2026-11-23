@@ -78,6 +78,35 @@ claves distintas compitiendo por la primera compra.
 Validación local del 20 de noviembre de 2026: Node 22.21.1 y PostgreSQL 16.15
 aislado bajo `/tmp`, con Auth simulado. No se aplicó SQL en Supabase Cloud.
 
+### V15 / CAM-264 — reversión de una compra afiliada fallida
+
+[Caso SQL reproducible](sql/v15_reversion_compra_afiliada.sql), ejecutado por
+`npm run test:pago-afiliado`. Siga las instrucciones de [ejecución aislada](#ejecución-aislada).
+El runner instala el esquema y las migraciones requeridas por V08 en una base
+desechable `cf_v08_test_*`, prepara los datos ficticios y ejecuta el caso con
+`psql`. El archivo SQL usa esos datos y comprueba el nombre de la base.
+
+El trigger de prueba se activa al insertar la comisión del caso y verifica
+que el pedido y el débito ya existen dentro de la transacción. La llamada
+autenticada debe terminar con `P0015` (`fallo_controlado_v15`). El script
+abre otra conexión para comparar el estado persistido, retira el trigger y
+confirma de nuevo con el mismo carrito, total aceptado y clave. Una última
+llamada comprueba que la respuesta guardada y el estado se mantienen iguales.
+
+El 23 de noviembre de 2026, con Node 22.23.1 y PostgreSQL 17.12 en Docker,
+se observó el error `P0015 fallo_controlado_v15` y estos estados para el
+comprador ficticio y su intento de compra.
+
+| Estado observado | Saldo Wallet | Stock | Pedidos | Pagos | Débitos | Comisiones | Claves registradas |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Inicial | 100.000 CLP | 95 | 0 | 0 | 0 | 0 | 0 |
+| Después del fallo | 100.000 CLP | 95 | 0 | 0 | 0 | 0 | 0 |
+| Después de retirar el fallo y confirmar | 99.150 CLP | 94 | 1 | 1 | 1 | 1 | 1 |
+| Después de repetir la confirmación | 99.150 CLP | 94 | 1 | 1 | 1 | 1 | 1 |
+
+El débito fue de 850 CLP y la comisión pendiente de 85 CLP. La segunda
+confirmación devolvió el mismo pedido. Se usó Auth simulado en la base local.
+
 ## V07 / CAM-175 — primera compra por comprador y cafetería
 
 La migración `20261120204414_validar_primera_compra.sql` implementa la regla
